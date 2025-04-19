@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block header %}Dashboard Overview{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+    <!-- File Stats Card -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-gray-500 text-sm font-medium">Total Files</p>
+                <h3 class="text-2xl font-bold text-indigo-600">{{ file_stats.total_files }}</h3>
+            </div>
+            <div class="p-3 rounded-full bg-indigo-100 text-indigo-600">
+                <i class="fas fa-file-excel text-xl"></i>
+            </div>
+        </div>
+        <div class="mt-4">
+            <span class="text-sm {{ 'text-green-500' if file_stats.change_percent >= 0 else 'text-red-500' }}">
+                <i class="fas {{ 'fa-arrow-up' if file_stats.change_percent >= 0 else 'fa-arrow-down' }} mr-1"></i>
+                {{ file_stats.change_percent|abs }}% from last week
+            </span>
+        </div>
+    </div>
+
+    <!-- Sheets Stats Card -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-gray-500 text-sm font-medium">Total Sheets</p>
+                <h3 class="text-2xl font-bold text-blue-600">{{ file_stats.total_sheets }}</h3>
+            </div>
+            <div class="p-3 rounded-full bg-blue-100 text-blue-600">
+                <i class="fas fa-layer-group text-xl"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Activity Card -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-gray-500 text-sm font-medium">Recent Activity</p>
+                <h3 class="text-2xl font-bold text-purple-600">{{ recent_activity.count }}</h3>
+            </div>
+            <div class="p-3 rounded-full bg-purple-100 text-purple-600">
+                <i class="fas fa-history text-xl"></i>
+            </div>
+        </div>
+        <div class="mt-2">
+            <p class="text-sm text-gray-600 truncate">{{ recent_activity.last_action }}</p>
+        </div>
+    </div>
+
+    <!-- System Status Card -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-gray-500 text-sm font-medium">System Status</p>
+                <h3 class="text-2xl font-bold {{ 'text-green-600' if system_status.healthy else 'text-yellow-600' }}">
+                    {{ 'Normal' if system_status.healthy else 'Maintenance' }}
+                </h3>
+            </div>
+            <div class="p-3 rounded-full {{ 'bg-green-100 text-green-600' if system_status.healthy else 'bg-yellow-100 text-yellow-600' }}">
+                <i class="fas {{ 'fa-check-circle' if system_status.healthy else 'fa-tools' }} text-xl"></i>
+            </div>
+        </div>
+        <div class="mt-2">
+            <p class="text-sm text-gray-600">{{ system_status.message }}</p>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Files Section -->
+<div class="bg-white rounded-lg shadow p-6 mb-6">
+    <div class="flex justify-between items-center mb-4">
+        <h3 class="text-lg font-semibold">Recently Uploaded Files</h3>
+        <a href="{{ url_for('manage_files') }}" class="text-sm text-indigo-600 hover:text-indigo-800">View All</a>
+    </div>
+    
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Filename</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Uploaded</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sheets</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Quick Actions & Stats Section -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Quick Actions -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-lg font-semibold mb-4">Quick Actions</h3>
+        <div class="space-y-3">
+            <a href="{{ url_for('upload_file') }}" class="flex items-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                <div class="p-2 rounded-full bg-indigo-100 text-indigo-600 mr-3">
+                    <i class="fas fa-upload"></i>
+                </div>
+                <span>Upload New File</span>
+            </a>
+            <a href="{{ url_for('add_dictionary') }}" class="flex items-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                <div class="p-2 rounded-full bg-blue-100 text-blue-600 mr-3">
+                    <i class="fas fa-book-medical"></i>
+                </div>
+                <span>Create New Dictionary</span>
+            </a>
+            <a href="{{ url_for('system_config') }}" class="flex items-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                <div class="p-2 rounded-full bg-purple-100 text-purple-600 mr-3">
+                    <i class="fas fa-cog"></i>
+                </div>
+                <span>System Settings</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- Migration Progress -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-lg font-semibold mb-4">Migration Progress</h3>
+        <div class="space-y-4">
+            <div>
+                <div class="flex justify-between mb-1">
+                    <span class="text-sm font-medium text-gray-700">Current Batch</span>
+                    <span class="text-sm font-medium text-gray-700">{{ migration_stats.progress }}%</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2.5">
+                    <div class="bg-indigo-600 h-2.5 rounded-full" ></div>
+                </div>
+            </div>
+            <div class="grid grid-cols-3 gap-2 text-center">
+                <div class="p-2 bg-green-50 rounded-lg">
+                    <p class="text-sm text-gray-500">Completed</p>
+                    <p class="font-bold text-green-600">{{ migration_stats.completed }}</p>
+                </div>
+                <div class="p-2 bg-blue-50 rounded-lg">
+                    <p class="text-sm text-gray-500">In Progress</p>
+                    <p class="font-bold text-blue-600">{{ migration_stats.in_progress }}</p>
+                </div>
+                <div class="p-2 bg-yellow-50 rounded-lg">
+                    <p class="text-sm text-gray-500">Pending</p>
+                    <p class="font-bold text-yellow-600">{{ migration_stats.pending }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- System Health -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-lg font-semibold mb-4">System Health</h3>
+        <div class="space-y-3">
+            <div class="flex justify-between items-center">
+                <span class="text-sm font-medium text-gray-700">Storage</span>
+                <span class="text-sm font-medium {{ 'text-green-600' if system_health.storage_used < 80 else 'text-red-600' }}">
+                    {{ system_health.storage_used }}% used
+                </span>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-2.5">
+                <div class="h-2.5 rounded-full {{ 'bg-green-600' if system_health.storage_used < 80 else 'bg-red-600' }}" 
+                    ></div>
+            </div>
+
+            <div class="flex justify-between items-center pt-3">
+                <span class="text-sm font-medium text-gray-700">Memory</span>
+                <span class="text-sm font-medium {{ 'text-green-600' if system_health.memory_used < 75 else 'text-yellow-600' }}">
+                    {{ system_health.memory_used }}% used
+                </span>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-2.5">
+                <div class="h-2.5 rounded-full {{ 'bg-green-600' if system_health.memory_used < 75 else 'bg-yellow-600' }}" 
+                   ></div>
+            </div>
+
+            <div class="pt-4">
+                <p class="text-sm text-gray-600">
+                    <i class="fas fa-info-circle mr-1 text-blue-500"></i>
+                    Last checked: {{ system_health.last_checked }}
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// You can add dashboard-specific JavaScript here
+document.addEventListener('DOMContentLoaded', function() {
+    // Example: Refresh dashboard every 60 seconds
+    setInterval(function() {
+        fetch(window.location.href, {
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.text())
+        .then(html => {
+            const parser = new DOMParser();
+            const newDoc = parser.parseFromString(html, 'text/html');
+            const newContent = newDoc.querySelector('main').innerHTML;
+            document.querySelector('main').innerHTML = newContent;
+        });
+    }, 60000);
+});
+</script>
+{% endblock %}

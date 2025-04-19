@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QTPMigrator - {% block title %}{% endblock %}</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Include Inter font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .sidebar-collapse {
+            transition: all 0.3s ease;
+        }
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #a1a1a1;
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div class="flex h-screen overflow-hidden">
+        <!-- Sidebar -->
+        <div class="w-64 bg-indigo-700 text-white shadow-lg flex flex-col">
+            <div class="p-4 border-b border-indigo-600 flex items-center justify-between">
+                <h1 class="text-2xl font-bold flex items-center">
+                    <i class="fas fa-random mr-2"></i> QTPMigrator
+                </h1>
+                <button id="sidebar-toggle" class="md:hidden text-white">
+                    <i class="fas fa-bars"></i>
+                </button>
+            </div>
+            <nav class="p-4 flex-1 overflow-y-auto">
+                <div class="mb-6">
+                    <p class="text-xs uppercase text-indigo-300 mb-2">Main</p>
+                    <a href="{{ url_for('dashboard') }}" class="block py-2 px-3 rounded hover:bg-indigo-600 flex items-center">
+                        <i class="fas fa-tachometer-alt mr-2 w-5 text-center"></i> Dashboard
+                    </a>
+                </div>
+
+                <!-- Workstation Section -->
+                <div class="mb-6">
+                    <p class="text-xs uppercase text-indigo-300 mb-2">Admin</p>
+                    <a href="{{ url_for('manage_users') }}" class="block py-2 px-3 rounded hover:bg-indigo-600 flex items-center">
+                        <i class="fas fa-file-excel mr-2 w-5 text-center"></i> Manage Users
+                    </a>
+                    <a href="{{ url_for('admin_files') }}" class="block py-2 px-3 rounded hover:bg-indigo-600 flex items-center">
+                        <i class="fas fa-exchange-alt mr-2 w-5 text-center"></i> Manage Files
+                    </a>
+                    <a href="{{ url_for('logs') }}" class="block py-2 px-3 rounded hover:bg-indigo-600 flex items-center">
+                        <i class="fas fa-exchange-alt mr-2 w-5 text-center"></i> Logs
+                    </a>
+                </div>
+
+                <!-- Workstation Section -->
+                <div class="mb-6">
+                    <p class="text-xs uppercase text-indigo-300 mb-2">Workstation</p>
+                    <a href="{{ url_for('manage_files') }}" class="block py-2 px-3 rounded hover:bg-indigo-600 flex items-center">
+                        <i class="fas fa-file-excel mr-2 w-5 text-center"></i> Manage Files
+                    </a>
+                    <a href="{{ url_for('migrator') }}" class="block py-2 px-3 rounded hover:bg-indigo-600 flex items-center">
+                        <i class="fas fa-exchange-alt mr-2 w-5 text-center"></i> Migrator
+                    </a>
+                    <a href="{{ url_for('migration_track') }}" class="block py-2 px-3 rounded hover:bg-indigo-600 flex items-center">
+                        <i class="fas fa-exchange-alt mr-2 w-5 text-center"></i> Migration Track
+                    </a>
+                </div>
+                
+                <!-- Configuration Section -->
+                <div class="mb-6">
+                    <p class="text-xs uppercase text-indigo-300 mb-2">Configuration</p>
+                    <a href="{{ url_for('system_config') }}" class="block py-2 px-3 rounded hover:bg-indigo-600 flex items-center">
+                        <i class="fas fa-cog mr-2 w-5 text-center"></i> System
+                    </a>
+                    <a href="{{ url_for('account_config') }}" class="block py-2 px-3 rounded hover:bg-indigo-600 flex items-center">
+                        <i class="fas fa-user mr-2 w-5 text-center"></i> Account
+                    </a>
+                </div>
+                
+                <!-- Dictionary Section -->
+                <div class="mb-6">
+                    <p class="text-xs uppercase text-indigo-300 mb-2">Dictionary</p>
+                    <a href="{{ url_for('view_dictionaries') }}" class="block py-2 px-3 rounded hover:bg-indigo-600 flex items-center">
+                        <i class="fas fa-book mr-2 w-5 text-center"></i> View Dictionaries
+                    </a>
+                    <a href="{{ url_for('add_dictionary') }}" class="block py-2 px-3 rounded hover:bg-indigo-600 flex items-center">
+                        <i class="fas fa-plus-circle mr-2 w-5 text-center"></i> Add New Dictionary
+                    </a>
+                    <a href="{{ url_for('add_dictionary_item') }}" class="block py-2 px-3 rounded hover:bg-indigo-600 flex items-center">
+                        <i class="fas fa-plus-square mr-2 w-5 text-center"></i> Add New Item
+                    </a>
+                </div>
+                
+                <!-- Support Section -->
+                <div class="mb-6">
+                    <p class="text-xs uppercase text-indigo-300 mb-2">Support</p>
+                    <a href="#" class="block py-2 px-3 rounded hover:bg-indigo-600 flex items-center">
+                        <i class="fas fa-question-circle mr-2 w-5 text-center"></i> Help
+                    </a>
+                    <a href="#" class="block py-2 px-3 rounded hover:bg-indigo-600 flex items-center">
+                        <i class="fas fa-envelope mr-2 w-5 text-center"></i> Contact
+                    </a>
+                </div>
+            </nav>
+            <!-- Sidebar footer with static year -->
+            <div class="p-4 border-t border-indigo-600 text-xs text-indigo-300">
+                v1.2.0 | © 2023
+            </div>
+        </div>
+        
+        <!-- Main Content -->
+        <div class="flex-1 flex flex-col overflow-hidden">
+            <!-- Top Navigation -->
+            <header class="bg-white shadow-sm p-4 flex justify-between items-center border-b">
+                <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+                    <button id="mobile-sidebar-toggle" class="mr-3 text-gray-500 md:hidden">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    {% block header %}{% endblock %}
+                </h2>
+                <div class="flex items-center space-x-4">
+                    <div class="relative">
+                        <button id="notifications-btn" class="text-gray-500 hover:text-indigo-600">
+                            <i class="fas fa-bell"></i>
+                            <span class="absolute top-0 right-0 h-2 w-2 rounded-full bg-red-500"></span>
+                        </button>
+                    </div>
+                    <div class="relative">
+                        <button id="user-menu-button" class="flex items-center focus:outline-none">
+                            <img src="https://via.placeholder.com/40" alt="User" class="rounded-full h-8 w-8">
+                            <span class="ml-2 text-sm font-medium">Admin</span>
+                            <i class="fas fa-chevron-down ml-1 text-xs text-gray-500"></i>
+                        </button>
+                        <!-- User dropdown menu (hidden by default) -->
+                        <div id="user-menu" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50">
+                            <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                <i class="fas fa-user mr-2"></i> Profile
+                            </a>
+                            <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                <i class="fas fa-cog mr-2"></i> Settings
+                            </a>
+                            <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                <i class="fas fa-sign-out-alt mr-2"></i> Logout
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </header>
+            
+            <!-- Content Area -->
+            <main class="flex-1 overflow-y-auto p-6 bg-gray-50">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="mb-4 p-4 rounded-lg border-l-4 {% if category == 'success' %}border-green-500 bg-green-50{% elif category == 'error' %}border-red-500 bg-red-50{% else %}border-blue-500 bg-blue-50{% endif %}">
+                                <div class="flex items-center">
+                                    <i class="fas {% if category == 'success' %}fa-check-circle{% elif category == 'error' %}fa-exclamation-circle{% else %}fa-info-circle{% endif %} mr-3 {% if category == 'success' %}text-green-500{% elif category == 'error' %}text-red-500{% else %}text-blue-500{% endif %}"></i>
+                                    <span>{{ message }}</span>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+                
+                {% block content %}{% endblock %}
+            </main>
+        </div>
+    </div>
+    
+    <!-- JavaScript Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Mobile sidebar toggle
+            const mobileToggle = document.getElementById('mobile-sidebar-toggle');
+            const sidebar = document.querySelector('.flex > div:first-child');
+            
+            mobileToggle.addEventListener('click', function() {
+                sidebar.classList.toggle('hidden');
+                sidebar.classList.toggle('absolute');
+                sidebar.classList.toggle('z-50');
+            });
+            
+            // User dropdown toggle
+            const userMenuButton = document.getElementById('user-menu-button');
+            const userMenu = document.getElementById('user-menu');
+            
+            userMenuButton.addEventListener('click', function() {
+                userMenu.classList.toggle('hidden');
+            });
+            
+            // Close dropdown when clicking outside
+            document.addEventListener('click', function(event) {
+                if (!userMenu.contains(event.target) && event.target !== userMenuButton) {
+                    userMenu.classList.add('hidden');
+                }
+            });
+            
+            // Notifications button
+            document.getElementById('notifications-btn').addEventListener('click', function() {
+                alert("Notifications would appear here");
+            });
+        });
+    </script>
+    
+    {% block scripts %}{% endblock %}
+</body>
+</html>
