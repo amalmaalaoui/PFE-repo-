@@ -13,7 +13,7 @@
     </div>
     
     <!-- Hidden upload form -->
-    <form id="uploadForm" action="{{ url_for('upload_file') }}" method="POST" enctype="multipart/form-data" class="hidden">
+    <form id="uploadForm" action="{{ url_for('main.upload_file') }}" method="POST" enctype="multipart/form-data" class="hidden">
         <input type="file" name="file" id="fileInput" accept=".xlsx,.xls" required>
         <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded">Upload</button>
     </form>

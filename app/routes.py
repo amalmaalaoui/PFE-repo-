@@ -1,313 +1,414 @@
-import os
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
+from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.utils import secure_filename
+from app.models import User, Migration, UserFile
+from app import db
+import os
 import pandas as pd
 from datetime import datetime
-from app import app  # ✅ import the one created in __init__.py
-from datetime import datetime, timedelta
-from apscheduler.schedulers.background import BackgroundScheduler
+from functools import wraps
+from .forms import UserForm, EditUserForm  # Assuming you have a UserForm class
 
-# Initialize scheduler
-scheduler = BackgroundScheduler()
-scheduler.start()
+# Create blueprint
+main_bp = Blueprint('main', __name__)
 
-# Dictionary to store migration jobs
-migration_jobs = {}
+# Custom decorators
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_admin:
+            flash('Admin access required', 'error')
+            return redirect(url_for('main.dashboard'))
+        return f(*args, **kwargs)
+    return decorated_function
 
+# Authentication routes
+@main_bp.route('/login', methods=['GET', 'POST'])
+def login():
+    if current_user.is_authenticated:
+        return redirect(url_for('main.dashboard'))
+        
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        user = User.query.filter_by(username=username).first()
+        
+        if user and user.check_password(password):
+            login_user(user)
+            next_page = request.args.get('next')
+            return redirect(next_page or url_for('main.dashboard'))
+        flash('Invalid username or password', 'error')
+    return render_template('auth/login.html')
 
-app.config['UPLOAD_FOLDER'] = os.path.join('static', 'uploads')
-app.config['ALLOWED_EXTENSIONS'] = {'xlsx', 'xls'}
-app.secret_key = 'your-secret-key-here'
+#add_user route
+@main_bp.route('/add_user', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def add_user():
+    print("Add user route accessed")
+    form = UserForm()  # Instantiate your form
+    if form.validate_on_submit():
+        try:
+            # Create a new user
+            new_user = User(
+                username=form.username.data,
+                email=form.email.data,
+                is_admin=form.is_admin.data
+            )
+            new_user.set_password(form.password.data)  # Set the user's password
+            db.session.add(new_user)
+            db.session.commit()
+            flash('User added successfully!', 'success')
+            print("User added successfully")
+            return redirect(url_for('main.manage_users'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error adding user: {str(e)}', 'danger')
+            print(f"Error adding user: {str(e)}")
+    return render_template('auth/add_user.html', form=form)  # Pass form to template
 
-# Ensure upload folder exists
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-
-class ExcelFile:
-    def __init__(self, id, filename, upload_date, size, sheet_count, sheet_names):
-        self.id = id
-        self.filename = filename
-        self.upload_date = upload_date
-        self.size = size
-        self.sheet_count = sheet_count
-        self.sheet_names = sheet_names
-
-def allowed_file(filename):
-    return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
-
-@app.route('/api/migration_status')
-def migration_status():
-    job_id = request.args.get('job_id')
-    if not job_id or job_id not in migration_jobs:
-        return jsonify({'error': 'Invalid job ID'}), 400
+#edit user route
+@main_bp.route('/edit_user/<int:user_id>', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def edit_user(user_id):
+    user = User.query.get_or_404(user_id)
+    form = EditUserForm(obj=user)  # Populate form with user data
     
-    return jsonify(migration_jobs[job_id])
-
-
-def get_excel_files():
-    files = []
-    upload_dir = app.config['UPLOAD_FOLDER']
+    if request.method == 'GET':
+        # Pre-populate the form for GET requests
+        form.is_admin.data = user.is_admin
     
-    for idx, filename in enumerate(os.listdir(upload_dir)):
-        if filename.endswith(('.xlsx', '.xls')):
-            filepath = os.path.join(upload_dir, filename)
-            stat = os.stat(filepath)
+    if form.validate_on_submit():
+        try:
+            # Update user data
+            user.username = form.username.data
+            user.email = form.email.data
+            user.is_admin = form.is_admin.data
             
-            try:
-                # Read Excel file to get sheet info
-                xls = pd.ExcelFile(filepath)
-                sheet_count = len(xls.sheet_names)
-                sheet_names = xls.sheet_names
-            except ValueError as ve:
-                print(f"ValueError while reading {filename}: {ve}")
-                sheet_count = 0
-                sheet_names = []
-            except Exception as e:
-                print(f"Unexpected error while reading {filename}: {e}")
-                sheet_count = 0
-                sheet_names = []
+            # Handle password change if provided
+            if form.new_password.data:
+                user.set_password(form.new_password.data)
+                flash('Password has been updated', 'success')
             
-            files.append(ExcelFile(
-                id=idx,
-                filename=filename,
-                upload_date=datetime.fromtimestamp(stat.st_mtime),
-                size=f"{stat.st_size / 1024:.1f} KB",
-                sheet_count=sheet_count,
-                sheet_names=sheet_names
-            ))
-    
-    return files
-
-
-
-@app.route('/workstation/migrator')
-def migrator():
-    files = get_excel_files()  # Reuse your existing function
-    return render_template('workstation/migrator.html', files=files)
-
-@app.route('/api/start_migration', methods=['POST'])
-def start_migration():
-    data = request.json
-    file_id = data['file_id']
-    schedule_time = data.get('schedule_time')
-    email_notification = data.get('email_notification', False)
-    generate_report = data.get('generate_report', False)
-    ignore_errors = data.get('ignore_errors', False)
-    
-    files = get_excel_files()
-    if file_id < 0 or file_id >= len(files):
-        return jsonify({'error': 'Invalid file ID'}), 400
-    
-    selected_file = files[file_id]
-    filepath = os.path.join(app.config['UPLOAD_FOLDER'], selected_file.filename)
-    
-    if schedule_time:
-        # Schedule the job
-        run_date = datetime.strptime(schedule_time, '%Y-%m-%dT%H:%M')
-        job = scheduler.add_job(
-            run_migration,
-            'date',
-            run_date=run_date,
-            args=[filepath, email_notification, generate_report, ignore_errors],
-            id=f"migration_{file_id}_{datetime.now().timestamp()}"
-        )
-        migration_jobs[job.id] = {
-            'status': 'scheduled',
-            'start_time': run_date,
-            'file': selected_file.filename,
-            'countdown': (run_date - datetime.now()).total_seconds()
-        }
-        return jsonify({
-            'message': 'Migration scheduled successfully',
-            'job_id': job.id,
-            'countdown': migration_jobs[job.id]['countdown']
-        })
+            db.session.commit()
+            flash('User updated successfully!', 'success')
+            print("User updated successfully")
+            return redirect(url_for('main.manage_users'))
+            
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error updating user: {str(e)}', 'danger')
+            print(f"Error updating user: {str(e)}")
+            return render_template('auth/edit_user.html', 
+                                   form=form, 
+                                   user=user,
+                                   title='Edit User', 
+                                   error=str(e))
     else:
-        # Run immediately
-        results = run_migration(filepath, email_notification, generate_report, ignore_errors)
-        return jsonify(results)
+        if request.method == 'POST':
+            flash('Form validation failed. Please check your input.', 'danger')
+            print("Form validation failed.")
+    
+    # For GET requests or failed validation
+    return render_template('auth/edit_user.html', 
+                         form=form, 
+                         user=user,
+                         title='Edit User')
 
-def run_migration(filepath, email_notification, generate_report, ignore_errors):
-    try:
-        # Run your migration functions
-        #add to C:\Users\amalm\OneDrive\Documents\PFE\qtpmigratorpfe\ to path
-      #  filepath = os.path.join(r"C:\Users\amalm\OneDrive\Documents\PFE\qtpmigratorpfe", filepath)
-        filename = os.path.basename(filepath)
-        print(f"Running migration for {filepath}...")
+#delte user route
+@main_bp.route('/delete_user/<int:user_id>', methods=['POST'])
+def delete_user(user_id):
+    user = User.query.get_or_404(user_id)
+    
+    if user.id == current_user.id:
+        flash('You cannot delete your own account', 'error')
+        return redirect(url_for('main.manage_users'))
+    
+    db.session.delete(user)
+    db.session.commit()
+    flash('User deleted successfully', 'success')
+    return redirect(url_for('main.manage_users'))
 
-        dict_QTP, dict_safal, listblock = excel_to_Dict(filepath)
-        savedicts(dict_QTP, dict_safal, listblock,filename )
-        
-        # Get the generated files
-        results_dir = os.path.join(app.root_path.split('\\app')[0], 'results', filename)
-        print(f"Results directory: {results_dir}")
-        generated_files = []
-        for filename in os.listdir(results_dir):
-            if filename.endswith('_Dictionnary.xlsx'):
-                filepath = os.path.join(results_dir, filename)
-                df = pd.read_excel(filepath, sheet_name='QTP')
-                generated_files.append({
-                    'filename': filename,
-                    'block_id': filename.split('_')[0],
-                    'row_count': len(df),
-                    'migrated': False
-                })
-        
-        return {
-            'status': 'completed',
-            'block_count': len(generated_files),
-            'generated_files': generated_files
-        }
-    except Exception as e:
-        if ignore_errors:
-            return {'status': 'completed_with_errors', 'error': str(e)}
-        else:
-            return {'status': 'failed', 'error': str(e)}
-        
-@app.route('/')
+
+@main_bp.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('main.login'))
+
+@main_bp.route('/reset-password', methods=['GET', 'POST'])
+def reset_password():
+    if request.method == 'POST':
+        email = request.form['email']
+        user = User.query.filter_by(email=email).first()
+        if user:
+            # In production: Send password reset email
+            flash('Password reset link has been sent to your email', 'info')
+            return redirect(url_for('main.login'))
+        flash('Email not found', 'error')
+    return render_template('auth/reset_password.html')
+
+# Dashboard and main routes
+@main_bp.route('/')
+@login_required
 def dashboard():
+    # Get user-specific data
+    files = UserFile.query.filter_by(user_id=current_user.id).order_by(UserFile.upload_date.desc()).limit(5).all()
+    migrations = Migration.query.filter_by(user_id=current_user.id).order_by(Migration.created_at.desc()).limit(5).all()
+    
+    # Calculate stats
+    total_files = UserFile.query.filter_by(user_id=current_user.id).count()
+    total_sheets = sum(file.sheet_count for file in files)
+    
+    # Calculate change_percent: compare files uploaded in last 7 days vs previous 7 days
+    from datetime import datetime, timedelta
+    now = datetime.now()
+    seven_days_ago = now - timedelta(days=7)
+    fourteen_days_ago = now - timedelta(days=14)
+    
+    recent_count = UserFile.query.filter(
+        UserFile.user_id == current_user.id,
+        UserFile.upload_date >= seven_days_ago
+    ).count()
+    
+    previous_count = UserFile.query.filter(
+        UserFile.user_id == current_user.id,
+        UserFile.upload_date >= fourteen_days_ago,
+        UserFile.upload_date < seven_days_ago
+    ).count()
+    
+    if previous_count == 0:
+        change_percent = 0
+    else:
+        change_percent = ((recent_count - previous_count) / previous_count) * 100
+    
+    file_stats = {
+        'total_files': total_files,
+        'total_sheets': total_sheets,
+        'change_percent': round(change_percent, 2)
+    }
+    
     return render_template('dashboard.html',
-        file_stats={
-            'total_files': 42,
-            'change_percent': 12.5,
-            'total_sheets': 156
-        },
-        recent_activity={
-            'count': 7,
-            'last_action': "File 'migration_batch_3.xlsx' uploaded"
-        },
-        system_status={
-            'healthy': True,
-            'message': "All systems operational"
-        },
-        recent_files=[...],  # List of recent file objects
-        migration_stats={
-            'progress': 65,
-            'completed': 23,
-            'in_progress': 5,
-            'pending': 12
-        },
-        system_health={
-            'storage_used': 45,
-            'memory_used': 62,
-            'last_checked': "2 minutes ago"
-        }
-    )
-@app.route('/workstation/manage_files')
+                         files=files,
+                         migrations=migrations,
+                         file_stats=file_stats)
+
+# Workstation routes
+@main_bp.route('/workstation/manage_files')
+@login_required
 def manage_files():
-    files = get_excel_files()
+    files = UserFile.query.filter_by(user_id=current_user.id).all()
     return render_template('workstation/manage_files.html', files=files)
 
-@app.route('/workstation/manage_users')
-def manage_users():
-    return render_template('workstation/manage_users.html')
+@main_bp.route('/workstation/migrator')
+@login_required
+def migrator():
+    files = UserFile.query.filter_by(user_id=current_user.id).all()
+    return render_template('workstation/migrator.html', files=files)
 
-@app.route('/workstation/admin_files')
-def admin_files():
-    files = get_excel_files()
-    return render_template('workstation/admin_files.html', files=files)
-
-
-@app.route('/workstation/logs')
-def logs():
-    return render_template('workstation/logs.html')
-
-@app.route('/workstation/migration_track')
+@main_bp.route('/workstation/migration_track')
+@login_required
 def migration_track():
-    return render_template('workstation/migration_track.html')
+    migrations = Migration.query.filter_by(user_id=current_user.id)\
+                              .order_by(Migration.created_at.desc())\
+                              .all()
+    return render_template('workstation/migration_track.html', migrations=migrations)
 
-@app.route('/upload_file', methods=['POST'])
+# Admin routes
+@main_bp.route('/admin/manage_users')
+@login_required
+@admin_required
+def manage_users():
+    page = request.args.get('page', 1, type=int)
+    users = User.query.paginate(page=page, per_page=10, error_out=False)
+    return render_template('admin/manage_users.html', users=users)
+
+@main_bp.route('/admin/files')
+@login_required
+@admin_required
+def admin_files():
+    files = UserFile.query.order_by(UserFile.upload_date.desc()).all()
+    return render_template('admin/files.html', files=files)
+
+@main_bp.route('/admin/logs')
+@login_required
+@admin_required
+def logs():
+    migrations = Migration.query.order_by(Migration.created_at.desc()).all()
+    return render_template('admin/logs.html', migrations=migrations)
+
+# File operations
+@main_bp.route('/upload_file', methods=['POST'])
+@login_required
 def upload_file():
     if 'file' not in request.files:
         flash('No file part', 'error')
-        return redirect(url_for('manage_files'))
+        return redirect(url_for('main.manage_files'))
     
     file = request.files['file']
     if file.filename == '':
         flash('No selected file', 'error')
-        return redirect(url_for('manage_files'))
+        return redirect(url_for('main.manage_files'))
     
     if file and allowed_file(file.filename):
         filename = secure_filename(file.filename)
-        file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], f'user_{current_user.id}', filename)
+        os.makedirs(os.path.dirname(filepath), exist_ok=True)
+        file.save(filepath)
+        
+        # Get file info
+        try:
+            xls = pd.ExcelFile(filepath)
+            sheet_count = len(xls.sheet_names)
+            sheet_names = ','.join(xls.sheet_names)
+        except Exception as e:
+            sheet_count = 0
+            sheet_names = ''
+
+        # Save to database
+        user_file = UserFile(
+            user_id=current_user.id,
+            filename=filename,
+            filepath=filepath,
+            size=os.path.getsize(filepath),
+            sheet_count=sheet_count,
+            sheet_names=sheet_names
+        )
+        db.session.add(user_file)
+        db.session.commit()
+        
         flash('File successfully uploaded', 'success')
     else:
         flash('Allowed file types are .xlsx, .xls', 'error')
     
-    return redirect(url_for('manage_files'))
+    return redirect(url_for('main.manage_files'))
 
-@app.route('/preview_file/<int:file_id>')
-def preview_file(file_id):
-    files = get_excel_files()
-    if file_id < 0 or file_id >= len(files):
-        return jsonify({'error': 'File not found'}), 404
-    
-    file = files[file_id]
-    filepath = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
+@main_bp.route('/delete_file/<int:file_id>', methods=['POST'])
+@login_required
+def delete_file(file_id):
+    file = UserFile.query.filter_by(id=file_id, user_id=current_user.id).first()
+    if not file:
+        flash('File not found or access denied', 'error')
+        return redirect(url_for('main.manage_files'))
     
     try:
-        # Read first sheet and get first 10 rows
-        df = pd.read_excel(filepath, sheet_name=0, nrows=10)
-        preview_html = df.to_html(classes='table-auto w-full', index=False)
+        os.remove(file.filepath)
+        db.session.delete(file)
+        db.session.commit()
+        flash('File deleted successfully', 'success')
+    except Exception as e:
+        flash(f'Error deleting file: {str(e)}', 'error')
+    
+    return redirect(url_for('main.manage_files'))
+
+# Migration API
+@main_bp.route('/api/start_migration', methods=['POST'])
+@login_required
+def start_migration():
+    data = request.json
+    file_id = data['file_id']
+    user_file = UserFile.query.filter_by(id=file_id, user_id=current_user.id).first()
+    
+    if not user_file:
+        return jsonify({'error': 'File not found or access denied'}), 404
+    
+    # Create migration record
+    migration = Migration(
+        user_id=current_user.id,
+        original_filename=user_file.filename,
+        status='pending',
+        scheduled_time=datetime.strptime(data.get('schedule_time'), '%Y-%m-%dT%H:%M') if data.get('schedule_time') else None
+    )
+    db.session.add(migration)
+    db.session.commit()
+    
+    # Create user-specific output folder
+    output_folder = os.path.join(app.config['MIGRATION_FOLDER'], f'user_{current_user.id}', f'migration_{migration.id}')
+    os.makedirs(output_folder, exist_ok=True)
+    
+    # Prepare migration data
+    migration_data = {
+        'filepath': user_file.filepath,
+        'email_notification': data.get('email_notification', False),
+        'generate_report': data.get('generate_report', False),
+        'ignore_errors': data.get('ignore_errors', False),
+        'output_folder': output_folder,
+        'migration_id': migration.id
+    }
+    
+    if data.get('schedule_time'):
+        # Schedule the job
+        run_date = datetime.strptime(data['schedule_time'], '%Y-%m-%dT%H:%M')
+        job = scheduler.add_job(
+            run_migration_task,
+            'date',
+            run_date=run_date,
+            kwargs=migration_data,
+            id=f"migration_{migration.id}"
+        )
         
         return jsonify({
-            'filename': file.filename,
-            'preview_html': preview_html
+            'status': 'scheduled',
+            'job_id': job.id,
+            'scheduled_time': run_date.isoformat(),
+            'countdown': (run_date - datetime.now()).total_seconds()
         })
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    else:
+        # Run immediately
+        results = run_migration_task(**migration_data)
+        return jsonify(results)
 
-@app.route('/delete_file/<int:file_id>', methods=['DELETE'])
-def delete_file(file_id):
-    files = get_excel_files()
-    if file_id < 0 or file_id >= len(files):
-        return jsonify({'error': 'File not found'}), 404
-    
-    file = files[file_id]
-    filepath = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
-    
+def run_migration_task(filepath, output_folder, migration_id, **kwargs):
     try:
-        os.remove(filepath)
-        return jsonify({'success': True})
+        # Run migration
+        dict_QTP, dict_safal, listblock = excel_to_Dict(filepath)
+        
+        # Save results to user-specific folder
+        for idlist in listblock:
+            output_path = os.path.join(output_folder, f'{idlist}_Dictionary.xlsx')
+            with pd.ExcelWriter(output_path) as writer:
+                dict_QTP[idlist].to_excel(writer, sheet_name='QTP', index=False)
+                dict_safal[idlist].to_excel(writer, sheet_name='Safal', index=False)
+        
+        # Update migration status
+        migration = Migration.query.get(migration_id)
+        migration.status = 'completed'
+        migration.completed_at = datetime.now()
+        migration.block_count = len(listblock)
+        migration.output_folder = output_folder
+        db.session.commit()
+        
+        return {
+            'status': 'completed',
+            'block_count': len(listblock),
+            'output_folder': output_folder
+        }
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        migration = Migration.query.get(migration_id)
+        migration.status = 'failed'
+        migration.output_folder = output_folder
+        db.session.commit()
+        
+        if kwargs.get('ignore_errors'):
+            return {
+                'status': 'completed_with_errors',
+                'error': str(e),
+                'block_count': len(listblock) if 'listblock' in locals() else 0
+            }
+        return {
+            'status': 'failed',
+            'error': str(e)
+        }
 
-# Add other routes for Configuration and Dictionary sections
-@app.route('/configuration/system')
-def system_config():
-    return render_template('configuration/system.html')
+# Helper functions
+def allowed_file(filename):
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
 
-@app.route('/configuration/account')
-def account_config():
-    return render_template('configuration/account.html')
-
-@app.route('/dictionary/view')
-def view_dictionaries():
-    return render_template('dictionary/view.html')
-
-@app.route('/dictionary/add')
-def add_dictionary():
-    return render_template('dictionary/add_dictionary.html')
-
-@app.route('/dictionary/add_item')
-def add_dictionary_item():
-    return render_template('dictionary/add_item.html')
-
-
-# Function to read an Excel file and save each sheet as a separate CSV file
 def excel_to_Dict(excel_file):
-    # Read the Excel file
-    print(f'Processing file: {excel_file}')
     excel_data = pd.ExcelFile(excel_file)
-
-    print(f'Excel file {excel_file} has {len(excel_data.sheet_names)} sheets.')
-    
-    # Ensure the output directory exists
-    # os.makedirs(output_dir, exist_ok=True)
-
-    # Iterate through each sheet and save as CSV
     table = []
-    order = 0
     dict_QTP = {}
     dict_safal = {}
 
@@ -318,7 +419,7 @@ def excel_to_Dict(excel_file):
             listblock = set(df['TestCaseID'].tolist())
             for listid in listblock:
                 dfblock = df[df['TestCaseID'] == listid]
-                if str(listid) == 'nan':
+                if pd.isna(listid):
                     dict_QTP[0] = dfblock
                 else:
                     dict_QTP[int(listid)] = dfblock
@@ -327,36 +428,45 @@ def excel_to_Dict(excel_file):
             listblock1 = set(df['RowID'].tolist())
             for listid in listblock1:
                 dfblock = df[df['RowID'] == listid]
-                if str(listid) == 'nan':
+                if pd.isna(listid):
                     dict_safal[0] = dfblock
                 else:
                     dict_safal[int(listid)] = dfblock
 
-            # Remove NaN values from the sets
-            listblockint = {int(x) for x in listblock if pd.notna(x)}
-            listblock1int = {int(x) for x in listblock1 if pd.notna(x)}
+    listblock = {int(x) for x in listblock if not pd.isna(x)}
+    listblock1 = {int(x) for x in listblock1 if not pd.isna(x)} if 'listblock1' in locals() else set()
 
-    for aint in listblockint:
-        if aint not in listblock1int:
-            print(f'Error: {aint} not in Safal sheet')
-            return {}, {}, []
+    for aint in listblock:
+        if aint not in listblock1:
+            raise ValueError(f'Error: {aint} not in Safal sheet')
 
-    return dict_QTP, dict_safal, listblockint
+    return dict_QTP, dict_safal, list(listblock)
 
+# Configuration routes
+@main_bp.route('/configuration/system')
+@login_required
+@admin_required
+def system_config():
+    return render_template('configuration/system.html')
 
-def savedicts(dict_QTP, dict_safal, list, folder):
-    # Create a new directory for the results
-    print(f'Creating directory: results/{folder}')
-    os.makedirs('results', exist_ok=True)
-    os.makedirs(f'results/{folder}', exist_ok=True)
-    for idlist in list:
-        dfqtp = dict_QTP.get(idlist)
-        dfsafal = dict_safal.get(idlist)
+@main_bp.route('/configuration/account')
+@login_required
+def account_config():
+    return render_template('configuration/account.html')
 
-        # Create a new Excel writer object
-        os.makedirs('results', exist_ok=True)
-        with pd.ExcelWriter(f'results/{folder}/{idlist}_Dictionnary.xlsx') as writer:
-            # Write dfqtp to the first sheet
-            dfqtp.to_excel(writer, sheet_name='QTP', index=False)
-            # Write dfsafal to the second sheet
-            dfsafal.to_excel(writer, sheet_name='Safal', index=False)
+# Dictionary routes
+@main_bp.route('/dictionary/view')
+@login_required
+def view_dictionaries():
+    return render_template('dictionary/view.html')
+
+@main_bp.route('/dictionary/add')
+@login_required
+@admin_required
+def add_dictionary():
+    return render_template('dictionary/add_dictionary.html')
+
+@main_bp.route('/dictionary/add_item')
+@login_required
+def add_dictionary_item():
+    return render_template('dictionary/add_item.html')
