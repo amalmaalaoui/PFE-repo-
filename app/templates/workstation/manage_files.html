@@ -40,7 +40,7 @@
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ file.sheet_count }}</td>
                     <td class="px-6 py-4 text-sm text-gray-500">
                         <div class="flex flex-wrap gap-1">
-                            {% for name in file.sheet_names %}
+                            {% for name in file.sheet_names.split(',') %}
                             <span class="bg-gray-100 px-2 py-1 rounded text-xs">{{ name }}</span>
                             {% endfor %}
                         </div>

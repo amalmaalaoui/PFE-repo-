@@ -1,6 +1,6 @@
 from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, BooleanField, SubmitField
-from wtforms.validators import DataRequired, Email, EqualTo, Length
+from wtforms.validators import DataRequired, Email, EqualTo, Length, Optional, ValidationError
 
 class UserForm(FlaskForm):
     username = StringField('Username', validators=[DataRequired(), Length(min=4, max=25)])
@@ -15,9 +15,9 @@ class EditUserForm(FlaskForm):
     username = StringField('Username', validators=[DataRequired(), Length(min=4, max=25)])
     email = StringField('Email', validators=[DataRequired(), Email()])
     is_admin = BooleanField('Is Admin')
-    new_password = PasswordField('New Password', validators=[Length(min=6)])
+    new_password = PasswordField('New Password', validators=[Optional() , Length(min=6)])
     confirm_password = PasswordField('Confirm New Password', 
-                                   validators=[EqualTo('new_password')])
+                                   validators=[ Optional() , EqualTo('new_password')])
     submit = SubmitField('Update User')
 
 

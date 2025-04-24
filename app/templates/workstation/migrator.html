@@ -8,10 +8,10 @@
 <div class="bg-white rounded-lg shadow p-6">
     <!-- Tab Bar -->
     <div class="flex items-center border-b border-gray-200">
-        <div id="tabs-container" class="flex flex-1">
+        <div id="tabs-container" class="flex flex-1 overflow-x-auto">
             <!-- Tabs will be added here dynamically -->
         </div>
-        <button id="new-tab-btn" class="ml-2 p-2 text-gray-500 hover:text-indigo-600 hover:bg-gray-100 rounded-full">
+        <button id="new-tab-btn" class="ml-2 p-2 text-gray-500 hover:text-indigo-600 hover:bg-gray-100 rounded-full transition-colors">
             <i class="fas fa-plus"></i>
         </button>
     </div>
@@ -23,25 +23,30 @@
 </div>
 
 <!-- New Tab Modal -->
-<div id="new-tab-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
-    <div class="bg-white rounded-lg p-6 w-full max-w-md">
+<div id="new-tab-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
+    <div class="bg-white rounded-lg p-6 w-full max-w-md shadow-xl">
         <div class="flex justify-between items-center mb-4">
             <h3 class="text-lg font-semibold">New Migration Tab</h3>
-            <button onclick="closeNewTabModal()" class="text-gray-500 hover:text-gray-700">
+            <button onclick="closeNewTabModal()" class="text-gray-500 hover:text-gray-700 transition-colors">
                 <i class="fas fa-times"></i>
             </button>
         </div>
         <div class="space-y-4">
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Select File</label>
-                <select id="file-select" class="w-full border border-gray-300 rounded-md p-2">
+                <select id="file-select" class="w-full border border-gray-300 rounded-md p-2 focus:ring-indigo-500 focus:border-indigo-500">
                     {% for file in files %}
                     <option value="{{ file.id }}">{{ file.filename }}</option>
                     {% endfor %}
                 </select>
             </div>
-            <button onclick="createNewTab()" class="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700">
-                Create Tab
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Tab Name</label>
+                <input type="text" id="tab-name-input" placeholder="Migration for FileX" class="w-full border border-gray-300 rounded-md p-2 focus:ring-indigo-500 focus:border-indigo-500">
+            </div>
+            <button onclick="createNewTab()"
+                class="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 transition-colors flex items-center justify-center">
+                <i class="fas fa-plus-circle mr-2"></i> Create Tab
             </button>
         </div>
     </div>
@@ -59,17 +64,45 @@
                 <span class="px-3 py-1 rounded-full bg-blue-100 text-blue-800 text-sm">
                     Status: <span id="migration-status">Pending</span>
                 </span>
+                <span class="px-3 py-1 rounded-full bg-purple-100 text-purple-800 text-sm hidden" id="job-id-badge">
+                    Job ID: <span id="job-id-value">-</span>
+                </span>
             </div>
         </div>
-        
+
         <div id="countdown-container" class="mb-4 p-4 bg-yellow-50 rounded-lg hidden">
             <div class="flex items-center">
                 <i class="fas fa-clock text-yellow-500 mr-2"></i>
                 <span>Migration scheduled to run in: </span>
                 <span id="countdown-timer" class="font-bold ml-1"></span>
             </div>
+            <button onclick="cancelScheduledMigration()" class="mt-2 text-sm text-red-600 hover:text-red-800 flex items-center">
+                <i class="fas fa-times-circle mr-1"></i> Cancel Scheduled Migration
+            </button>
         </div>
-        
+
+        <div id="progress-container" class="mb-4 hidden">
+            <div class="flex justify-between text-sm mb-1">
+                <span>Migration Progress</span>
+                <span id="progress-percent">0%</span>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-2.5">
+                <div id="progress-bar" class="bg-indigo-600 h-2.5 rounded-full" style="width: 0%"></div>
+            </div>
+        </div>
+
+        <div id="error-container" class="mb-4 p-4 bg-red-50 rounded-lg hidden">
+            <div class="flex items-start">
+                <i class="fas fa-exclamation-circle text-red-500 mt-1 mr-2"></i>
+                <div>
+                    <h4 class="font-medium text-red-800">Migration Errors</h4>
+                    <ul id="error-list" class="text-sm text-red-700 mt-1 list-disc list-inside">
+                        <!-- Errors will be added here -->
+                    </ul>
+                </div>
+            </div>
+        </div>
+
         <div id="generated-files" class="space-y-2">
             <!-- Generated files will be added here -->
         </div>
@@ -78,9 +111,10 @@
 
 <!-- File Group Template (Hidden) -->
 <div id="file-group-template" class="hidden">
-    <div class="border border-gray-200 rounded-lg overflow-hidden">
-        <button class="file-group-header flex justify-between items-center w-full p-4 bg-gray-50 hover:bg-gray-100">
+    <div class="border border-gray-200 rounded-lg overflow-hidden mb-3">
+        <button class="file-group-header flex justify-between items-center w-full p-4 bg-gray-50 hover:bg-gray-100 transition-colors">
             <div class="flex items-center">
+                <i class="fas fa-file-excel text-green-600 mr-3"></i>
                 <span class="font-medium"><span class="block-id">Block</span>_Dictionary.xlsx</span>
                 <span class="ml-4 px-2 py-1 text-xs rounded-full bg-gray-200">
                     <span class="row-count">0</span> rows
@@ -92,21 +126,33 @@
             </div>
         </button>
         <div class="file-group-content p-4 bg-white hidden">
-            <div class="flex items-center justify-between mb-2">
-                <span>Migration Status:</span>
-                <select class="migration-status-select border rounded p-1 text-sm">
-                    <option value="pending">Pending</option>
-                    <option value="in-progress">In Progress</option>
-                    <option value="completed">Completed</option>
-                    <option value="failed">Failed</option>
-                </select>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Migration Status</label>
+                    <select class="migration-status-select w-full border rounded p-2 text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="pending">Pending</option>
+                        <option value="in-progress">In Progress</option>
+                        <option value="completed">Completed</option>
+                        <option value="failed">Failed</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">File Size</label>
+                    <div class="text-sm text-gray-600 file-size">-</div>
+                </div>
             </div>
-            <div class="flex space-x-2">
-                <button class="view-file-btn text-sm text-indigo-600 hover:text-indigo-800">
+            <div class="flex flex-wrap gap-2">
+                <button class="view-file-btn text-sm bg-indigo-50 text-indigo-600 hover:bg-indigo-100 py-1 px-3 rounded flex items-center">
                     <i class="fas fa-eye mr-1"></i> View
                 </button>
-                <button class="download-file-btn text-sm text-green-600 hover:text-green-800">
+                <button class="download-file-btn text-sm bg-green-50 text-green-600 hover:bg-green-100 py-1 px-3 rounded flex items-center">
                     <i class="fas fa-download mr-1"></i> Download
+                </button>
+                <button class="validate-file-btn text-sm bg-blue-50 text-blue-600 hover:bg-blue-100 py-1 px-3 rounded flex items-center">
+                    <i class="fas fa-check-circle mr-1"></i> Validate
+                </button>
+                <button class="log-file-btn text-sm bg-gray-50 text-gray-600 hover:bg-gray-100 py-1 px-3 rounded flex items-center">
+                    <i class="fas fa-list-alt mr-1"></i> View Logs
                 </button>
             </div>
         </div>
@@ -116,348 +162,693 @@
 
 {% block scripts %}
 <script>
-let activeTabId = null;
-const tabs = {};
+    let activeTabId = null;
+    const tabs = {};
+    let currentJobId = null;
 
-document.addEventListener('DOMContentLoaded', function() {
-    // New Tab Button
-    document.getElementById('new-tab-btn').addEventListener('click', openNewTabModal);
-    
-    // Create initial tab
-    createTab('Migration 1', 0);
-});
+    document.addEventListener('DOMContentLoaded', function () {
+        // New Tab Button
+        document.getElementById('new-tab-btn').addEventListener('click', openNewTabModal);
 
-function openNewTabModal() {
-    document.getElementById('new-tab-modal').classList.remove('hidden');
-}
+        // Create initial tab if none exists
+        if (Object.keys(tabs).length === 0) {
+            createTab('Migration Dashboard', null);
+        }
+    });
 
-function closeNewTabModal() {
-    document.getElementById('new-tab-modal').classList.add('hidden');
-}
+    function openNewTabModal() {
+        document.getElementById('new-tab-modal').classList.remove('hidden');
+    }
 
-function createNewTab() {
-    const fileSelect = document.getElementById('file-select');
-    const fileId = parseInt(fileSelect.value);
-    const fileName = fileSelect.options[fileSelect.selectedIndex].text;
-    
-    createTab(`Migrate ${fileName}`, fileId);
-    closeNewTabModal();
-}
+    function closeNewTabModal() {
+        document.getElementById('new-tab-modal').classList.add('hidden');
+    }
 
-function createTab(title, fileId) {
-    const tabId = `tab-${Date.now()}`;
-    tabs[tabId] = { title, fileId, status: 'pending' };
-    
-    // Create tab button
-    const tabButton = document.createElement('button');
-    tabButton.id = `tab-btn-${tabId}`;
-    tabButton.className = 'tab-btn px-4 py-2 font-medium border-b-2 border-transparent hover:text-indigo-600 hover:border-indigo-300';
-    tabButton.textContent = title;
-    tabButton.onclick = () => switchTab(tabId);
-    
-    // Add close button
-    const closeSpan = document.createElement('span');
-    closeSpan.className = 'ml-2 text-gray-400 hover:text-gray-600';
-    closeSpan.innerHTML = '&times;';
-    closeSpan.onclick = (e) => {
-        e.stopPropagation();
-        closeTab(tabId);
-    };
-    tabButton.appendChild(closeSpan);
-    
-    document.getElementById('tabs-container').appendChild(tabButton);
-    
-    // Create tab content
-    const tabContent = document.createElement('div');
-    tabContent.id = `tab-content-${tabId}`;
-    tabContent.className = 'tab-content hidden';
-    tabContent.innerHTML = `
+    function createNewTab() {
+        const fileSelect = document.getElementById('file-select');
+        const fileId = parseInt(fileSelect.value);
+        const fileName = fileSelect.options[fileSelect.selectedIndex].text;
+        const tabNameInput = document.getElementById('tab-name-input');
+        const tabName = tabNameInput.value.trim() || `Migrate ${fileName}`;
+
+        createTab(tabName, fileId);
+        closeNewTabModal();
+        tabNameInput.value = ''; // Reset input
+    }
+
+    function createTab(title, fileId) {
+        const tabId = `tab-${Date.now()}`;
+        tabs[tabId] = { 
+            title, 
+            fileId, 
+            status: 'pending',
+            jobId: null,
+            scheduled: false
+        };
+
+        // Create tab button
+        const tabButton = document.createElement('button');
+        tabButton.id = `tab-btn-${tabId}`;
+        tabButton.className = 'tab-btn px-4 py-2 font-medium border-b-2 border-transparent hover:text-indigo-600 hover:border-indigo-300 transition-colors flex items-center';
+        
+        // Add status indicator
+        const statusIndicator = document.createElement('span');
+        statusIndicator.className = 'w-2 h-2 rounded-full bg-gray-300 mr-2 tab-status-indicator';
+        tabButton.appendChild(statusIndicator);
+        
+        // Add title
+        const titleSpan = document.createElement('span');
+        titleSpan.className = 'truncate max-w-xs';
+        titleSpan.textContent = title;
+        tabButton.appendChild(titleSpan);
+
+        // Add close button
+        const closeSpan = document.createElement('span');
+        closeSpan.className = 'ml-2 text-gray-400 hover:text-gray-600 transition-colors';
+        closeSpan.innerHTML = '&times;';
+        closeSpan.onclick = (e) => {
+            e.stopPropagation();
+            closeTab(tabId);
+        };
+        tabButton.appendChild(closeSpan);
+
+        tabButton.onclick = () => switchTab(tabId);
+
+        document.getElementById('tabs-container').appendChild(tabButton);
+
+        // Create tab content
+        const tabContent = document.createElement('div');
+        tabContent.id = `tab-content-${tabId}`;
+        tabContent.className = 'tab-content hidden';
+        tabContent.innerHTML = `
         <div class="bg-white p-6 rounded-lg border border-gray-200">
             <h3 class="text-lg font-semibold mb-4">Migration Configuration</h3>
             
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Schedule Time (optional)</label>
-                    <input type="datetime-local" id="schedule-time-${tabId}" class="w-full border border-gray-300 rounded-md p-2">
+                    <input type="datetime-local" id="schedule-time-${tabId}" class="w-full border border-gray-300 rounded-md p-2 focus:ring-indigo-500 focus:border-indigo-500">
                 </div>
                 
-<div class="space-y-2">
-    <label class="flex items-center">
-        <input type="checkbox" id="email-notification-${tabId}" class="rounded text-indigo-600">
-        <span class="ml-2">Receive email notification</span>
-    </label>
-    <label class="flex items-center">
-        <input type="checkbox" id="generate-report-${tabId}" class="rounded text-indigo-600" checked>
-        <span class="ml-2">Generate report</span>
-    </label>
-    <label class="flex items-center">
-        <input type="checkbox" id="ignore-errors-${tabId}" class="rounded text-indigo-600">
-        <span class="ml-2">Ignore errors</span>
-    </label>
-</div>
+                <div class="space-y-2">
+                    <label class="flex items-center">
+                        <input type="checkbox" id="email-notification-${tabId}" class="rounded text-indigo-600 focus:ring-indigo-500">
+                        <span class="ml-2">Receive email notification</span>
+                    </label>
+                    <label class="flex items-center">
+                        <input type="checkbox" id="generate-report-${tabId}" class="rounded text-indigo-600 focus:ring-indigo-500" checked>
+                        <span class="ml-2">Generate detailed report</span>
+                    </label>
+                    <label class="flex items-center">
+                        <input type="checkbox" id="ignore-errors-${tabId}" class="rounded text-indigo-600 focus:ring-indigo-500">
+                        <span class="ml-2">Ignore minor errors</span>
+                    </label>
+                </div>
             </div>
             
-            <button onclick="startMigration('${tabId}')" class="bg-indigo-600 text-white py-2 px-6 rounded-md hover:bg-indigo-700">
-                Start Migration
-            </button>
+            <div class="flex space-x-3">
+                <button onclick="startMigration('${tabId}')" 
+                    class="bg-indigo-600 text-white py-2 px-6 rounded-md hover:bg-indigo-700 transition-colors flex items-center">
+                    <i class="fas fa-play-circle mr-2"></i> Start Migration
+                </button>
+                <button onclick="validateMigration('${tabId}')" 
+                    class="bg-blue-50 text-blue-600 py-2 px-6 rounded-md hover:bg-blue-100 transition-colors flex items-center">
+                    <i class="fas fa-check-circle mr-2"></i> Validate Only
+                </button>
+            </div>
         </div>
         
         <div id="results-container-${tabId}" class="mt-6"></div>
     `;
-    
-    document.getElementById('tab-content').appendChild(tabContent);
-    
-    // Switch to the new tab
-    switchTab(tabId);
-}
 
-function switchTab(tabId) {
-    // Hide all tab contents and deactivate all tab buttons
-    document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
-    document.querySelectorAll('.tab-btn').forEach(el => {
-        el.classList.remove('border-indigo-600', 'text-indigo-600');
-        el.classList.add('border-transparent', 'text-gray-500');
-    });
-    
-    // Show selected tab content and activate its button
-    document.getElementById(`tab-content-${tabId}`).classList.remove('hidden');
-    const tabBtn = document.getElementById(`tab-btn-${tabId}`);
-    tabBtn.classList.remove('border-transparent', 'text-gray-500');
-    tabBtn.classList.add('border-indigo-600', 'text-indigo-600');
-    
-    activeTabId = tabId;
-}
+        document.getElementById('tab-content').appendChild(tabContent);
 
-function closeTab(tabId) {
-    if (Object.keys(tabs).length <= 1) return; // Don't close the last tab
-    
-    // Remove tab button and content
-    document.getElementById(`tab-btn-${tabId}`).remove();
-    document.getElementById(`tab-content-${tabId}`).remove();
-    delete tabs[tabId];
-    
-    // Switch to the first remaining tab
-    const remainingTabId = Object.keys(tabs)[0];
-    if (remainingTabId) switchTab(remainingTabId);
-}
+        // Switch to the new tab
+        switchTab(tabId);
+    }
 
-function startMigration(tabId) {
-    const tab = tabs[tabId];
-    const scheduleTime = document.getElementById(`schedule-time-${tabId}`).value;
-    const emailNotification = document.getElementById(`email-notification-${tabId}`).checked;
-    const generateReport = document.getElementById(`generate-report-${tabId}`).checked;
-    const ignoreErrors = document.getElementById(`ignore-errors-${tabId}`).checked;
-    
-    const data = {
-        file_id: tab.fileId,
-        schedule_time: scheduleTime || null,
-        email_notification: emailNotification,
-        generate_report: generateReport,
-        ignore_errors: ignoreErrors
-    };
-    
-    fetch('/api/start_migration', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data)
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.error) {
-            showError(data.error);
-            return;
-        }
-        
-        const resultsContainer = document.getElementById(`results-container-${tabId}`);
-        resultsContainer.innerHTML = document.getElementById('results-template').innerHTML;
-        
-        if (data.countdown) {
-            // Scheduled migration
-            updateMigrationStatus(resultsContainer, 'Scheduled', 'blue');
-            showCountdown(resultsContainer, data.countdown, tabId, data.job_id);
-        } else {
-            // Immediate results
-            showMigrationResults(resultsContainer, data);
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        showError('Migration failed to start');
-    });
-}
-
-// Helper functions
-function showError(message) {
-    alert('Error: ' + message);
-    // Or use a more sophisticated error display
-}
-
-function updateMigrationStatus(container, status, color) {
-    const statusMap = {
-        'blue': 'bg-blue-100 text-blue-800',
-        'green': 'bg-green-100 text-green-800',
-        'red': 'bg-red-100 text-red-800',
-        'yellow': 'bg-yellow-100 text-yellow-800'
-    };
-    
-    const statusElement = container.querySelector('#migration-status');
-    statusElement.textContent = status;
-    statusElement.className = `px-3 py-1 rounded-full text-sm ${statusMap[color] || statusMap.blue}`;
-}
-
-
-function showCountdown(container, seconds, tabId, jobId) {
-    const countdownContainer = container.querySelector('#countdown-container');
-    const countdownTimer = container.querySelector('#countdown-timer');
-    
-    countdownContainer.classList.remove('hidden');
-    
-
-    const updateTimer = () => {
-        seconds--;
-        if (seconds <= 0) {
-            countdownTimer.textContent = 'Running now...';
-            clearInterval(interval);
-            return;
-        }
-        
-        const hours = Math.floor(seconds / 3600);
-        const minutes = Math.floor((seconds % 3600) / 60);
-        const secs = Math.floor(seconds % 60);
-        countdownTimer.textContent = `${hours}h ${minutes}m ${secs}s`;
-    };
-    
-    const interval = setInterval(updateTimer, 1000);
-    updateTimer();
-    
-    // Start polling for results
-    pollForResults(tabId, jobId);
-    return;
-}
-function pollForResults(tabId, jobId) {
-    fetch(`/api/migration_status?job_id=${jobId}`)
-    .then(response => response.json())
-    .then(data => {
-        console.log(data);
-        if (data.error) {
-            showError(data.error);
-            return;
-        }
-
-        if (data.status === 'completed' || data.status === 'completed_with_errors' || data.status === 'failed') {
-            const resultsContainer = document.getElementById(`results-container-${tabId}`);
-            showMigrationResults(resultsContainer, data);
-        } else {
-            // Continue polling
-            setTimeout(() => pollForResults(tabId, jobId), 2000);
-        }
-    });
-}
-
-function showMigrationResults(container, data) {
-    container.querySelector('#block-count').textContent = data.block_count || 0;
-    container.querySelector('#migration-status').textContent = data.status;
-    
-    // Update status badge color
-    const statusBadge = container.querySelector('#migration-status');
-    statusBadge.className = 'px-3 py-1 rounded-full text-sm ' + 
-        (data.status === 'completed' ? 'bg-green-100 text-green-800' : 
-         data.status === 'completed_with_errors' ? 'bg-yellow-100 text-yellow-800' : 
-         'bg-red-100 text-red-800');
-    
-    // Hide countdown if it was shown
-    container.querySelector('#countdown-container').classList.add('hidden');
-    
-    // Add generated files
-    const filesContainer = container.querySelector('#generated-files');
-    filesContainer.innerHTML = '';
-    
-    if (data.generated_files && data.generated_files.length > 0) {
-        data.generated_files.forEach(file => {
-            const fileGroup = document.createElement('div');
-            fileGroup.innerHTML = document.getElementById('file-group-template').innerHTML;
-            
-            // Set file info
-            fileGroup.querySelector('.block-id').textContent = file.block_id;
-            fileGroup.querySelector('.row-count').textContent = file.row_count;
-            
-            // Set status
-            const statusBadge = fileGroup.querySelector('.status-badge');
-            statusBadge.textContent = file.migrated ? 'Migrated' : 'Pending';
-            statusBadge.className = 'status-badge px-2 py-1 text-xs rounded-full mr-2 ' + 
-                (file.migrated ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800');
-            
-            // Set up toggle functionality
-            const header = fileGroup.querySelector('.file-group-header');
-            const content = fileGroup.querySelector('.file-group-content');
-            header.addEventListener('click', () => {
-                content.classList.toggle('hidden');
-                const icon = header.querySelector('.fa-chevron-down');
-                icon.classList.toggle('rotate-180');
-            });
-            
-            // Set up status select
-            const statusSelect = fileGroup.querySelector('.migration-status-select');
-            statusSelect.value = file.migrated ? 'completed' : 'pending';
-            statusSelect.addEventListener('change', (e) => {
-                const newStatus = e.target.value;
-                const badge = fileGroup.querySelector('.status-badge');
-                badge.textContent = newStatus.replace('-', ' ');
-                badge.className = 'status-badge px-2 py-1 text-xs rounded-full mr-2 ' + 
-                    (newStatus === 'completed' ? 'bg-green-100 text-green-800' : 
-                     newStatus === 'in-progress' ? 'bg-blue-100 text-blue-800' : 
-                     newStatus === 'failed' ? 'bg-red-100 text-red-800' : 
-                     'bg-gray-100 text-gray-800');
-            });
-            
-            // Set up view/download buttons
-            fileGroup.querySelector('.view-file-btn').addEventListener('click', () => {
-                alert(`Viewing ${file.filename}`);
-                // Implement actual view functionality
-            });
-            
-            fileGroup.querySelector('.download-file-btn').addEventListener('click', () => {
-                window.location.href = `/static/results/${file.filename}`;
-            });
-            
-            filesContainer.appendChild(fileGroup);
+    function switchTab(tabId) {
+        // Hide all tab contents and deactivate all tab buttons
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+        document.querySelectorAll('.tab-btn').forEach(el => {
+            el.classList.remove('border-indigo-600', 'text-indigo-600');
+            el.classList.add('border-transparent', 'text-gray-500');
         });
-    } else {
-        filesContainer.innerHTML = '<p class="text-gray-500">No files were generated.</p>';
+
+        // Show selected tab content and activate its button
+        document.getElementById(`tab-content-${tabId}`).classList.remove('hidden');
+        const tabBtn = document.getElementById(`tab-btn-${tabId}`);
+        tabBtn.classList.remove('border-transparent', 'text-gray-500');
+        tabBtn.classList.add('border-indigo-600', 'text-indigo-600');
+
+        activeTabId = tabId;
+    }
+
+    function closeTab(tabId) {
+        if (Object.keys(tabs).length <= 1) {
+            showToast('Cannot close the last tab', 'error');
+            return;
+        }
+
+        // Remove tab button and content
+        document.getElementById(`tab-btn-${tabId}`).remove();
+        document.getElementById(`tab-content-${tabId}`).remove();
+        delete tabs[tabId];
+
+        // Switch to the first remaining tab
+        const remainingTabId = Object.keys(tabs)[0];
+        if (remainingTabId) switchTab(remainingTabId);
+    }
+
+    function validateMigration(tabId) {
+        const tab = tabs[tabId];
+        if (!tab.fileId) {
+            showToast('Please select a file first', 'error');
+            return;
+        }
+
+        const data = {
+            file_id: tab.fileId,
+            validate_only: true
+        };
+
+        showToast('Starting validation...', 'info');
+        
+        fetch('/api/validate_migration', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                showError(data.error);
+                return;
+            }
+
+            const resultsContainer = document.getElementById(`results-container-${tabId}`);
+            resultsContainer.innerHTML = document.getElementById('results-template').innerHTML;
+            
+            // Show validation results
+            updateMigrationStatus(resultsContainer, 'Validation Complete', 'blue');
+            resultsContainer.querySelector('#block-count').textContent = data.block_count || 0;
+            
+            if (data.validation_errors && data.validation_errors.length > 0) {
+                const errorContainer = resultsContainer.querySelector('#error-container');
+                errorContainer.classList.remove('hidden');
+                
+                const errorList = resultsContainer.querySelector('#error-list');
+                errorList.innerHTML = '';
+                
+                data.validation_errors.forEach(error => {
+                    const li = document.createElement('li');
+                    li.textContent = error;
+                    errorList.appendChild(li);
+                });
+                
+                showToast('Validation completed with errors', 'warning');
+            } else {
+                showToast('Validation completed successfully', 'success');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showError('Validation failed');
+        });
+    }
+
+    function startMigration(tabId) {
+        const tab = tabs[tabId];
+        const scheduleTime = document.getElementById(`schedule-time-${tabId}`).value;
+        const emailNotification = document.getElementById(`email-notification-${tabId}`).checked;
+        const generateReport = document.getElementById(`generate-report-${tabId}`).checked;
+        const ignoreErrors = document.getElementById(`ignore-errors-${tabId}`).checked;
+        console.log('Schedule Time:', scheduleTime);
+        if (!tab.fileId) {
+            showToast('Please select a file first', 'error');
+            return;
+        }
+
+        const data = {
+            file_id: tab.fileId,
+            schedule_time: scheduleTime ,
+            email_notification: emailNotification,
+            generate_report: generateReport,
+            ignore_errors: ignoreErrors
+        };
+
+        showToast('Starting migration process...', 'info');
+        
+        fetch('/api/start_migration', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data)
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    showError(data.error);
+                    return;
+                }
+
+                const resultsContainer = document.getElementById(`results-container-${tabId}`);
+                resultsContainer.innerHTML = document.getElementById('results-template').innerHTML;
+                
+                // Store job ID for later reference
+                currentJobId = data.job_id;
+                tab.jobId = data.job_id;
+                resultsContainer.querySelector('#job-id-value').textContent = data.job_id;
+                resultsContainer.querySelector('#job-id-badge').classList.remove('hidden');
+
+                if (data.countdown) {
+                    // Scheduled migration
+                    tab.scheduled = true;
+                    updateMigrationStatus(resultsContainer, 'Scheduled', 'blue');
+                    updateTabStatus(tabId, 'scheduled');
+                    showCountdown(resultsContainer, data.countdown, tabId, data.job_id);
+                    showToast('Migration scheduled successfully', 'success');
+                } else {
+                    // Immediate migration
+                    updateMigrationStatus(resultsContainer, 'In Progress', 'blue');
+                    updateTabStatus(tabId, 'in-progress');
+                    showMigrationProgress(resultsContainer, tabId, data.job_id);
+                    showToast('Migration started successfully', 'success');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showError('Migration failed to start');
+            });
+    }
+
+    function cancelScheduledMigration() {
+        if (!currentJobId) return;
+        
+        fetch(`/api/cancel_migration?job_id=${currentJobId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('Scheduled migration cancelled', 'success');
+                    document.getElementById('countdown-container').classList.add('hidden');
+                    updateMigrationStatus(document.getElementById('results-container-' + activeTabId), 'Cancelled', 'gray');
+                    updateTabStatus(activeTabId, 'cancelled');
+                } else {
+                    showToast(data.error || 'Failed to cancel migration', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showToast('Failed to cancel migration', 'error');
+            });
+    }
+
+    function checkMigrationProgress(jobId) {
+    if (!jobId || jobId === 'undefined') {
+        console.error('Invalid job ID');
+        return Promise.reject('Invalid job ID');
+    }
+
+    return fetch(`/api/migration_progress?job_id=${jobId}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.error) {
+                throw new Error(data.error);
+            }
+            return data;
+        })
+        .catch(error => {
+            console.error('Error checking migration progress:', error);
+            throw error;
+        });
+}
+
+// Usage example:
+function pollMigrationProgress(jobId) {
+    if (!jobId) {
+        console.error('No job ID provided for polling');
+        return;
+    }
+
+    const progressInterval = setInterval(() => {
+        checkMigrationProgress(jobId)
+            .then(data => {
+                updateProgressUI(data);
+                
+                if (data.status === 'completed' || data.status === 'failed') {
+                    clearInterval(progressInterval);
+                }
+            })
+            .catch(error => {
+                console.error('Polling error:', error);
+                clearInterval(progressInterval);
+            });
+    }, 2000); // Poll every 2 seconds
+}
+
+function updateProgressUI(data) {
+    const progressElement = document.getElementById('migration-progress');
+    
+    if (data.status === 'scheduled') {
+        progressElement.textContent = `Scheduled - Starts in ${Math.round(data.time_remaining)}s`;
+    } 
+    else if (data.status === 'completed') {
+        progressElement.textContent = `Completed - ${data.block_count} blocks migrated`;
+    }
+    else if (data.status === 'failed') {
+        progressElement.textContent = 'Migration failed';
+    }
+    else {
+        progressElement.textContent = 'Migration in progress...';
     }
 }
+    function updateTabStatus(tabId, status) {
+        const tab = tabs[tabId];
+        if (!tab) return;
+        
+        tab.status = status;
+        const statusIndicator = document.querySelector(`#tab-btn-${tabId} .tab-status-indicator`);
+        
+        // Update indicator color based on status
+        statusIndicator.className = `w-2 h-2 rounded-full mr-2 tab-status-indicator ${
+            status === 'completed' ? 'bg-green-500' :
+            status === 'in-progress' ? 'bg-blue-500 animate-pulse' :
+            status === 'scheduled' ? 'bg-yellow-500' :
+            status === 'failed' ? 'bg-red-500' :
+            'bg-gray-300'
+        }`;
+    }
+
+    function showMigrationProgress(container, tabId, jobId) {
+        const progressContainer = container.querySelector('#progress-container');
+        progressContainer.classList.remove('hidden');
+        
+        // Start polling for progress
+        const progressInterval = setInterval(() => {
+            fetch(`/api/migration_progress?job_id=${jobId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        clearInterval(progressInterval);
+                        showError(data.error);
+                        return;
+                    }
+
+                    const progressPercent = Math.round(data.progress * 100);
+                    container.querySelector('#progress-percent').textContent = `${progressPercent}%`;
+                    container.querySelector('#progress-bar').style.width = `${progressPercent}%`;
+                    
+                    if (data.status === 'completed') {
+                        clearInterval(progressInterval);
+                        showMigrationResults(container, data);
+                        updateTabStatus(tabId, 'completed');
+                    } else if (data.status === 'failed') {
+                        clearInterval(progressInterval);
+                        showMigrationResults(container, data);
+                        updateTabStatus(tabId, 'failed');
+                    }
+                });
+        }, 1000);
+    }
+
+    // Helper functions
+    function showError(message) {
+        showToast(message, 'error');
+    }
+    document.addEventListener('DOMContentLoaded', function() {
+    const jobId = getJobIdFromSomewhere(); // Make sure this returns a valid ID
+    
+    if (jobId && jobId !== 'undefined') {
+        pollMigrationProgress(jobId);
+    } else {
+        console.error('No valid job ID found');
+        document.getElementById('migration-progress').textContent = 'Migration status unavailable';
+    }
+});
+    function showToast(message, type = 'info') {
+        const toast = document.createElement('div');
+        toast.className = `fixed top-4 right-4 p-4 rounded-md shadow-lg text-white ${
+            type === 'error' ? 'bg-red-500' :
+            type === 'success' ? 'bg-green-500' :
+            type === 'warning' ? 'bg-yellow-500' :
+            'bg-blue-500'
+        } z-50 transform transition-all duration-300 translate-x-full`;
+        toast.innerHTML = `
+            <div class="flex items-center">
+                <i class="fas ${
+                    type === 'error' ? 'fa-exclamation-circle' :
+                    type === 'success' ? 'fa-check-circle' :
+                    type === 'warning' ? 'fa-exclamation-triangle' :
+                    'fa-info-circle'
+                } mr-2"></i>
+                <span>${message}</span>
+            </div>
+        `;
+        document.body.appendChild(toast);
+        
+        // Animate in
+        setTimeout(() => {
+            toast.classList.remove('translate-x-full');
+            toast.classList.add('translate-x-0');
+        }, 10);
+        
+        // Auto-remove after 5 seconds
+        setTimeout(() => {
+            toast.classList.remove('translate-x-0');
+            toast.classList.add('translate-x-full');
+            setTimeout(() => toast.remove(), 300);
+        }, 5000);
+    }
+
+    function updateMigrationStatus(container, status, color) {
+        const statusMap = {
+            'blue': 'bg-blue-100 text-blue-800',
+            'green': 'bg-green-100 text-green-800',
+            'red': 'bg-red-100 text-red-800',
+            'yellow': 'bg-yellow-100 text-yellow-800',
+            'gray': 'bg-gray-100 text-gray-800',
+            'purple': 'bg-purple-100 text-purple-800'
+        };
+
+        const statusElement = container.querySelector('#migration-status');
+        statusElement.textContent = status;
+        statusElement.className = `px-3 py-1 rounded-full text-sm ${statusMap[color] || statusMap.blue}`;
+    }
+
+    function showCountdown(container, seconds, tabId, jobId) {
+        const countdownContainer = container.querySelector('#countdown-container');
+        const countdownTimer = container.querySelector('#countdown-timer');
+
+        countdownContainer.classList.remove('hidden');
+
+        const updateTimer = () => {
+            seconds--;
+            if (seconds <= 0) {
+                countdownTimer.textContent = 'Running now...';
+                clearInterval(interval);
+                
+                // Switch to progress view
+                updateMigrationStatus(container, 'In Progress', 'blue');
+                showMigrationProgress(container, tabId, jobId);
+                return;
+            }
+
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            const secs = Math.floor(seconds % 60);
+            countdownTimer.textContent = `${hours}h ${minutes}m ${secs}s`;
+        };
+
+        const interval = setInterval(updateTimer, 1000);
+        updateTimer();
+    }
+
+    function showMigrationResults(container, data) {
+        container.querySelector('#block-count').textContent = data.block_count || 0;
+        
+        // Update status
+        let statusText = 'Completed';
+        let statusColor = 'green';
+        
+        if (data.status === 'completed_with_errors') {
+            statusText = 'Completed with Errors';
+            statusColor = 'yellow';
+        } else if (data.status === 'failed') {
+            statusText = 'Failed';
+            statusColor = 'red';
+        }
+        
+        updateMigrationStatus(container, statusText, statusColor);
+
+        // Hide progress and countdown if they were shown
+        container.querySelector('#countdown-container').classList.add('hidden');
+        container.querySelector('#progress-container').classList.add('hidden');
+
+        // Show errors if any
+        if (data.errors && data.errors.length > 0) {
+            const errorContainer = container.querySelector('#error-container');
+            errorContainer.classList.remove('hidden');
+            
+            const errorList = container.querySelector('#error-list');
+            errorList.innerHTML = '';
+            
+            data.errors.forEach(error => {
+                const li = document.createElement('li');
+                li.textContent = error;
+                errorList.appendChild(li);
+            });
+        }
+
+        // Add generated files
+        const filesContainer = container.querySelector('#generated-files');
+        filesContainer.innerHTML = '';
+
+        if (data.generated_files && data.generated_files.length > 0) {
+            data.generated_files.forEach(file => {
+                const fileGroup = document.createElement('div');
+                fileGroup.innerHTML = document.getElementById('file-group-template').innerHTML;
+
+                // Set file info
+                fileGroup.querySelector('.block-id').textContent = file.block_id;
+                fileGroup.querySelector('.row-count').textContent = file.row_count;
+                fileGroup.querySelector('.file-size').textContent = formatFileSize(file.size);
+
+                // Set status
+                const statusBadge = fileGroup.querySelector('.status-badge');
+                statusBadge.textContent = file.status.replace('-', ' ') || 'Pending';
+                statusBadge.className = 'status-badge px-2 py-1 text-xs rounded-full mr-2 ' +
+                    (file.status === 'completed' ? 'bg-green-100 text-green-800' :
+                     file.status === 'in-progress' ? 'bg-blue-100 text-blue-800' :
+                     file.status === 'failed' ? 'bg-red-100 text-red-800' :
+                     'bg-gray-100 text-gray-800');
+
+                // Set up toggle functionality
+                const header = fileGroup.querySelector('.file-group-header');
+                const content = fileGroup.querySelector('.file-group-content');
+                header.addEventListener('click', () => {
+                    content.classList.toggle('hidden');
+                    const icon = header.querySelector('.fa-chevron-down');
+                    icon.classList.toggle('rotate-180');
+                });
+
+                // Set up status select
+                const statusSelect = fileGroup.querySelector('.migration-status-select');
+                statusSelect.value = file.status || 'pending';
+                statusSelect.addEventListener('change', (e) => {
+                    const newStatus = e.target.value;
+                    const badge = fileGroup.querySelector('.status-badge');
+                    badge.textContent = newStatus.replace('-', ' ');
+                    badge.className = 'status-badge px-2 py-1 text-xs rounded-full mr-2 ' +
+                        (newStatus === 'completed' ? 'bg-green-100 text-green-800' :
+                         newStatus === 'in-progress' ? 'bg-blue-100 text-blue-800' :
+                         newStatus === 'failed' ? 'bg-red-100 text-red-800' :
+                         'bg-gray-100 text-gray-800');
+                });
+
+                // Set up action buttons
+                fileGroup.querySelector('.view-file-btn').addEventListener('click', () => {
+                    window.open(`/view_file?file_id=${file.id}`, '_blank');
+                });
+
+                fileGroup.querySelector('.download-file-btn').addEventListener('click', () => {
+                    window.location.href = `/download_file?file_id=${file.id}`;
+                });
+
+                fileGroup.querySelector('.validate-file-btn').addEventListener('click', () => {
+                    showToast(`Validating file ${file.filename}...`, 'info');
+                    // Implement actual validation
+                });
+
+                fileGroup.querySelector('.log-file-btn').addEventListener('click', () => {
+                    showToast(`Showing logs for ${file.filename}...`, 'info');
+                    // Implement actual log viewing
+                });
+
+                filesContainer.appendChild(fileGroup);
+            });
+        } else {
+            filesContainer.innerHTML = '<p class="text-gray-500">No files were generated.</p>';
+        }
+    }
+
+    function formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2) + ' ' + sizes[i]);
+    }
 </script>
 
 <style>
-.tab-btn {
-    transition: all 0.2s ease;
-    position: relative;
-    margin-right: 4px;
-}
+    .tab-btn {
+        transition: all 0.2s ease;
+        position: relative;
+        margin-right: 4px;
+        min-width: 120px;
+        max-width: 200px;
+    }
 
-.tab-btn:after {
-    content: '';
-    position: absolute;
-    bottom: -1px;
-    left: 0;
-    right: 0;
-    height: 2px;
-    background-color: transparent;
-    transition: background-color 0.2s ease;
-}
+    .tab-btn:after {
+        content: '';
+        position: absolute;
+        bottom: -1px;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background-color: transparent;
+        transition: background-color 0.2s ease;
+    }
 
-.tab-btn.active:after {
-    background-color: #4f46e5;
-}
+    .tab-btn.active:after {
+        background-color: #4f46e5;
+    }
 
-.rotate-180 {
-    transform: rotate(180deg);
-}
+    .rotate-180 {
+        transform: rotate(180deg);
+    }
 
-.file-group-header .fa-chevron-down {
-    transition: transform 0.2s ease;
-}
+    .file-group-header .fa-chevron-down {
+        transition: transform 0.2s ease;
+    }
+
+    #tabs-container {
+        scrollbar-width: thin;
+        scrollbar-color: #c7d2fe #f1f1f1;
+    }
+
+    #tabs-container::-webkit-scrollbar {
+        height: 6px;
+    }
+
+    #tabs-container::-webkit-scrollbar-track {
+        background: #f1f1f1;
+    }
+
+    #tabs-container::-webkit-scrollbar-thumb {
+        background-color: #c7d2fe;
+        border-radius: 6px;
+    }
+
+    .animate-pulse {
+        animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+
+    @keyframes pulse {
+        0%, 100% {
+            opacity: 1;
+        }
+        50% {
+            opacity: 0.5;
+        }
+    }
 </style>
 {% endblock %}

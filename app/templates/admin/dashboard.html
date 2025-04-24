@@ -1,0 +1,312 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard{% endblock %}
+
+{% block header %}
+<div class="text-3xl font-bold text-gray-800">📊 Admin Dashboard Overview</div>
+{% endblock %}
+
+{% block content %}
+<main>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <!-- Total Migrations -->
+    <div class="bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-2xl shadow-xl p-6 transition-transform hover:scale-105">
+        <div class="flex justify-between items-center">
+            <div>
+                <p class="text-sm">Total Migrations</p>
+                <h3 class="text-3xl font-extrabold mt-1">{{ migration_stats.total }}</h3>
+            </div>
+            <div class="bg-white bg-opacity-20 p-3 rounded-full">
+                <i class="fas fa-exchange-alt text-2xl"></i>
+            </div>
+        </div>
+        <div class="mt-4 text-sm">
+            <span class="{{ 'text-green-200' if migration_stats.change_percent >= 0 else 'text-red-200' }}">
+                <i class="fas {{ 'fa-arrow-up' if migration_stats.change_percent >= 0 else 'fa-arrow-down' }} mr-1"></i>
+                {{ migration_stats.change_percent|abs }}% from last week
+            </span>
+        </div>
+    </div>
+
+    <!-- Successful Migrations -->
+    <div class="bg-gradient-to-r from-green-500 to-emerald-400 text-white rounded-2xl shadow-xl p-6 transition-transform hover:scale-105">
+        <div class="flex justify-between items-center">
+            <div>
+                <p class="text-sm">Successful</p>
+                <h3 class="text-3xl font-extrabold mt-1">{{ migration_stats.completed }}</h3>
+                <p class="text-xs mt-1 opacity-80">
+                    {% if migration_stats.total|int > 0 %}
+                        {{ ((migration_stats.completed / migration_stats.total|int) * 100)|round(1) }}% success rate
+                    {% else %}
+                        N/A
+                    {% endif %}
+                </p>
+            </div>
+            <div class="bg-white bg-opacity-20 p-3 rounded-full">
+                <i class="fas fa-check-circle text-2xl"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- Failed Migrations -->
+    <div class="bg-gradient-to-r from-red-500 to-pink-500 text-white rounded-2xl shadow-xl p-6 transition-transform hover:scale-105">
+        <div class="flex justify-between items-center">
+            <div>
+                <p class="text-sm">Failed</p>
+                <h3 class="text-3xl font-extrabold mt-1">{{ migration_stats.failed }}</h3>
+                <p class="text-xs mt-1 opacity-80">
+                    {% if migration_stats.total|int > 0 %}
+                        {{ ((migration_stats.failed / migration_stats.total|int) * 100)|round(1) }}% failure rate
+                    {% else %}
+                        N/A
+                    {% endif %}
+                </p>
+            </div>
+            <div class="bg-white bg-opacity-20 p-3 rounded-full">
+                <i class="fas fa-exclamation-circle text-2xl"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- Average Blocks -->
+    <div class="bg-gradient-to-r from-amber-500 to-yellow-400 text-white rounded-2xl shadow-xl p-6 transition-transform hover:scale-105">
+        <div class="flex justify-between items-center">
+            <div>
+                <p class="text-sm">Avg Blocks/Migration</p>
+                <h3 class="text-3xl font-extrabold mt-1">{{ migration_stats.avg_blocks|round(1) }}</h3>
+                <p class="text-xs mt-1 opacity-80">{{ migration_stats.total_blocks }} total blocks</p>
+            </div>
+            <div class="bg-white bg-opacity-20 p-3 rounded-full">
+                <i class="fas fa-cubes text-2xl"></i>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Migration Charts Section -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-lg font-semibold mb-4">Migration Status Distribution</h3>
+        <canvas id="statusChart" height="250"></canvas>
+    </div>
+
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-lg font-semibold mb-4">Daily Migration Volume (Last 30 Days)</h3>
+        <canvas id="volumeChart" height="250"></canvas>
+    </div>
+</div>
+
+<!-- Recent Migrations Section -->
+<div class="bg-white rounded-lg shadow p-6 mb-6">
+    <div class="flex justify-between items-center mb-4">
+        <h3 class="text-lg font-semibold">Recent Migrations</h3>
+        <a href="#" class="text-sm text-indigo-600 hover:text-indigo-800">View All</a>
+    </div>
+    
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source File</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Blocks</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Duration</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                {% for migration in recent_migrations %}
+                <tr>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">#{{ migration.id }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="flex items-center">
+                            <div class="flex-shrink-0 h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600">
+                                {{ migration.user.username|first|upper }}
+                            </div>
+                            <div class="ml-4">
+                                <div class="text-sm font-medium text-gray-900">{{ migration.user.username }}</div>
+                                <div class="text-sm text-gray-500">{{ migration.user.email }}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {{ migration.source_file|default('N/A')|truncate(20) }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                            {% if migration.status == 'completed' %}bg-green-100 text-green-800
+                            {% elif migration.status == 'failed' %}bg-red-100 text-red-800
+                            {% else %}bg-yellow-100 text-yellow-800{% endif %}">
+                            {{ migration.status|upper }}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {{ migration.block_count }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {% if migration.completed_at %}
+                            {{ (migration.completed_at - migration.created_at).total_seconds() // 60 }} mins
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <a href="#" class="text-indigo-600 hover:text-indigo-900 mr-3">
+                            <i class="fas fa-info-circle"></i>
+                        </a>
+                        {% if migration.status == 'completed' %}
+                        <a href="#" class="text-green-600 hover:text-green-900">
+                            <i class="fas fa-download"></i>
+                        </a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- System Health Section -->
+<div class="bg-white rounded-lg shadow p-6">
+    <h3 class="text-lg font-semibold mb-4">System Health</h3>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+            <div class="flex justify-between mb-1">
+                <span class="text-sm font-medium text-gray-700">Storage</span>
+                <span class="text-sm font-medium {{ 'text-green-600' if system_health.storage_used|int < 80 else 'text-red-600' }}">
+                    {{ system_health.storage_used }}% used
+                </span>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-2.5">
+                <div class="h-2.5 rounded-full {{ 'bg-green-600' if system_health.storage_used|int < 80 else 'bg-red-600' }}" 
+                     style="width: {{ system_health.storage_used|int }}%"></div>
+            </div>
+        </div>
+        <div>
+            <div class="flex justify-between mb-1">
+                <span class="text-sm font-medium text-gray-700">Database</span>
+                <span class="text-sm font-medium {{ 'text-green-600' if system_health.db_size|int < 500 else 'text-yellow-600' }}">
+                    {{ system_health.db_size }} MB
+                </span>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-2.5">
+                <div class="h-2.5 rounded-full {{ 'bg-green-600' if system_health.db_size|int < 500 else 'bg-yellow-600' }}" 
+                     style="width: {{ [system_health.db_size|int / 10, 100]|min }}%"></div>
+            </div>
+        </div>
+        <div>
+            <div class="flex justify-between mb-1">
+                <span class="text-sm font-medium text-gray-700">Active Migrations</span>
+                <span class="text-sm font-medium {{ 'text-green-600' if system_health.active_migrations|int < 5 else 'text-yellow-600' }}">
+                    {{ system_health.active_migrations }}
+                </span>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-2.5">
+                <div class="h-2.5 rounded-full {{ 'bg-green-600' if system_health.active_migrations|int < 5 else 'bg-yellow-600' }}" 
+                     style="width: {{ system_health.active_migrations|int * 20 }}%"></div>
+            </div>
+        </div>
+    </div>
+</div>
+</main>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const statusCanvas = document.getElementById('statusChart');
+    if (statusCanvas) {
+        const statusCtx = statusCanvas.getContext('2d');
+        new Chart(statusCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Completed', 'Failed', 'Pending', 'In Progress'],
+                datasets: [{
+                    data: [
+                        {{ migration_stats.completed }},
+                        {{ migration_stats.failed }},
+                        {{ migration_stats.pending }},
+                        {{ migration_stats.in_progress }}
+                    ],
+                    backgroundColor: ['#10B981', '#EF4444', '#F59E0B', '#3B82F6'],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { position: 'right' },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const value = context.raw;
+                                const percentage = Math.round((value / total) * 100);
+                                return `${context.label}: ${value} (${percentage}%)`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    const volumeCanvas = document.getElementById('volumeChart');
+    if (volumeCanvas) {
+        const volumeCtx = volumeCanvas.getContext('2d');
+        new Chart(volumeCtx, {
+            type: 'bar',
+            data: {
+                labels: {{ migration_volume.dates|tojson|safe }},
+                datasets: [{
+                    label: 'Migrations',
+                    data: {{ migration_volume.counts|tojson|safe }},
+                    backgroundColor: '#6366F1',
+                    borderColor: '#4F46E5',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: { precision: 0 }
+                    }
+                },
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return `Migrations: ${context.raw}`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // Auto-refresh every 60s
+    setInterval(() => {
+        fetch(window.location.href, {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(res => res.text())
+        .then(html => {
+            const parser = new DOMParser();
+            const newDoc = parser.parseFromString(html, 'text/html');
+            const newContent = newDoc.querySelector('main')?.innerHTML;
+            if (newContent) {
+                document.querySelector('main').innerHTML = newContent;
+            }
+        })
+        .catch(err => console.error("Auto-refresh failed:", err));
+    }, 60000);
+});
+</script>
+{% endblock %}

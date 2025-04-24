@@ -49,6 +49,8 @@ class UserFile(db.Model):
     upload_date = db.Column(db.DateTime, default=datetime.utcnow)
     size = db.Column(db.Integer)
     sheet_count = db.Column(db.Integer)
+    file_type = db.Column(db.String(50))  # e.g., 'source', 'target', 'migration'
+    sheet_names = db.Column(db.Text)  # JSON string of sheet names
 
 class Migration(db.Model):
     __tablename__ = 'migrations'
@@ -61,3 +63,4 @@ class Migration(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     completed_at = db.Column(db.DateTime, nullable=True)
     error_message = db.Column(db.Text, nullable=True)
+    block_count = db.Column(db.Integer, nullable=True)

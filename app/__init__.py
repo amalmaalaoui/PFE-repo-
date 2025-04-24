@@ -2,10 +2,13 @@ from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
 from flask_migrate import Migrate
+from app.extensions import  scheduler
 
 # Initialize extensions without app
 db = SQLAlchemy()
 login_manager = LoginManager()
+login_manager.login_view = 'main.login'  # Redirect to login page if not logged in
+login_manager.unauthorized_handler = 'main.login'  # Redirect to unauthorized page if not authorized
 migrate = Migrate()
 
 def create_app():
@@ -23,7 +26,8 @@ def create_app():
     db.init_app(app)
     login_manager.init_app(app)
     migrate.init_app(app, db)
-
+    # Start scheduler
+    scheduler.init_app(app)
     # Import and register blueprints
     from app.routes import main_bp
     app.register_blueprint(main_bp)
