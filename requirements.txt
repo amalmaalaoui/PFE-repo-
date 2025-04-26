@@ -1,4 +1,33 @@
-flask 
-python-dotenv 
-pandas 
-openpyxl 
+# Core Flask
+Flask==2.3.2
+Flask-SQLAlchemy
+Flask-Login==0.6.2
+Flask-Migrate
+Flask-WTF==1.1.1
+
+# Database
+SQLAlchemy
+PyMySQL
+mysqlclient  # Alternative to PyMySQL
+
+# Data Processing
+pandas
+openpyxl==3.1.2  # For Excel file handling
+XlsxWriter==3.1.2
+
+# Scheduler
+APScheduler==3.10.1  # For background tasks
+
+# System Monitoring
+psutil==5.9.5
+
+# Development & Testing
+python-dotenv==1.0.0
+Werkzeug==2.3.7
+Jinja2==3.1.2
+itsdangerous==2.1.2
+click==8.1.3
+
+# Production (optional)
+gunicorn==20.1.0
+gevent==22.10.2
