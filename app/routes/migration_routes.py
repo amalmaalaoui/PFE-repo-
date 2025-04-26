@@ -1,5 +1,6 @@
 from sched import scheduler
-from flask import current_app, request, jsonify
+import shutil
+from flask import current_app, request, jsonify, send_file
 from flask_login import login_required, current_user
 from datetime import datetime
 import os
@@ -307,3 +308,102 @@ def run_migration_task(**kwargs):
                 'status': 'failed',
                 'error': f"Database error: {str(e)}"
             }
+
+
+#migrations crud
+@main_bp.route('/api/migrations', methods=['GET'])
+@login_required
+def get_migrations():
+    migrations = Migration.query.filter_by(user_id=current_user.id).all()
+    migration_list = []
+    
+    for migration in migrations:
+        migration_list.append({
+            'id': migration.id,
+            'source_file': migration.source_file,
+            'target_file': migration.target_file,
+            'status': migration.status,
+            'created_at': migration.created_at.isoformat(),
+            'completed_at': migration.completed_at.isoformat() if migration.completed_at else None,
+            'block_count': migration.block_count or 0,
+            'error_message': migration.error_message
+        })
+    
+    return jsonify(migration_list), 200
+
+@main_bp.route('/api/migration/<int:migration_id>', methods=['GET'])
+@login_required
+def get_migration(migration_id):
+    migration = Migration.query.filter_by(id=migration_id, user_id=current_user.id).first()
+    
+    if not migration:
+        return jsonify({'error': 'Migration not found'}), 404
+    
+    migration_data = {
+        'id': migration.id,
+        'source_file': migration.source_file,
+        'target_file': migration.target_file,
+        'status': migration.status,
+        'created_at': migration.created_at.isoformat(),
+        'completed_at': migration.completed_at.isoformat() if migration.completed_at else None,
+        'block_count': migration.block_count or 0,
+        'error_message': migration.error_message
+    }
+    
+    return jsonify(migration_data), 200
+
+@main_bp.route('/api/migration/<int:migration_id>', methods=['DELETE'])
+@login_required
+def delete_migration(migration_id):
+    migration = Migration.query.filter_by(id=migration_id, user_id=current_user.id).first()
+    
+    if not migration:
+        return jsonify({'error': 'Migration not found'}), 404
+    
+    try:
+        db.session.delete(migration)
+        db.session.commit()
+        return jsonify({'message': 'Migration deleted successfully'}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+    
+
+@main_bp.route('/api/migration/<int:migration_id>/download', methods=['GET'])
+@login_required
+def download_migration(migration_id):
+    migration = Migration.query.filter_by(id=migration_id, user_id=current_user.id).first()
+    
+    if not migration:
+        return jsonify({'error': 'Migration not found'}), 404
+    
+    output_folder = output_folder = os.path.join(current_app.config['MIGRATION_FOLDER'], 
+                               f'user_{current_user.id}')
+    if not os.path.exists(output_folder):
+        return jsonify({'error': 'Output folder not found'}), 404
+    
+    # Combine all the Excel files into one Excel file
+    combined_excel_path = os.path.join(output_folder, f'output', f'migration_{migration.id}.xlsx')
+    os.makedirs(os.path.dirname(combined_excel_path), exist_ok=True)
+    with pd.ExcelWriter(combined_excel_path) as writer:
+        for idlist in os.listdir(output_folder):
+            if idlist.endswith('_Dictionary.xlsx'):
+                file_path = os.path.join(output_folder, idlist)
+                sheet_name = os.path.splitext(idlist)[0]
+                data = pd.read_excel(file_path, sheet_name=None)  # Read all sheets
+                for sheet, df in data.items():
+                    df.to_excel(writer, sheet_name=f"{sheet_name}_{sheet}", index=False)
+    
+    zip_filename = f"migration_{migration.id}.zip"
+    zip_filepath = os.path.join(output_folder, f'output', zip_filename)
+    os.makedirs(os.path.dirname(zip_filepath), exist_ok=True)
+    download_folder = os.path.join(current_app.config['MIGRATION_FOLDER'], 
+                               f'user_{current_user.id}', 
+                               f'migration_{migration.id}')
+    if not os.path.exists(download_folder):
+        return jsonify({'error': 'Download folder not found'}), 404
+    # Create a zip file of the output folder
+    shutil.make_archive(zip_filepath.replace('.zip', ''), 'zip', download_folder)
+    
+    return send_file(zip_filepath, as_attachment=True, download_name=zip_filename)
+

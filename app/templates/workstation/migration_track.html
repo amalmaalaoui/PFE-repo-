@@ -1,48 +1,265 @@
-<!-- templates/workstation/migration_track.html -->
 {% extends "base.html" %}
 
 {% block title %}Migration Track{% endblock %}
-{% block header %}Migration History{% endblock %}
+
+{% block header %}Workstation - Migration Track{% endblock %}
 
 {% block content %}
-<div class="bg-white rounded-lg shadow p-6">
-    <div class="overflow-x-auto">
-        <table class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-gray-50">
-                <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Filename</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Blocks</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                </tr>
-            </thead>
-            <tbody class="bg-white divide-y divide-gray-200">
-                {% for migration in migrations %}
-                <tr>
-                    <td class="px-6 py-4 whitespace-nowrap">{{ migration.original_filename }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap">
-                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                            {% if migration.status == 'completed' %}bg-green-100 text-green-800
-                            {% elif migration.status == 'failed' %}bg-red-100 text-red-800
-                            {% else %}bg-yellow-100 text-yellow-800{% endif %}">
-                            {{ migration.status }}
-                        </span>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap">{{ migration.block_count }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap">{{ migration.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap">
-                        {% if migration.status == 'completed' %}
-                        <a href="{{ url_for('main.view_migration', id=migration.id) }}" 
-                           class="text-indigo-600 hover:text-indigo-900 mr-3">
-                            <i class="fas fa-folder-open"></i> View
-                        </a>
-                        {% endif %}
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+<div class="container-fluid">
+    <div class="card shadow mb-4">
+        <div class="card-header py-3 d-flex justify-content-between align-items-center">
+            <h6 class="m-0 font-weight-bold text-primary">Migration History</h6>
+            <div>
+                <button id="refresh-btn" class="btn btn-sm btn-primary">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered" id="migrationsTable" width="100%" cellspacing="0">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Source File</th>
+                            <th>Status</th>
+                            <th>Created</th>
+                            <th>Completed</th>
+                            <th>Blocks</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Data will be loaded via JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
 </div>
+
+<!-- Migration Details Modal -->
+<div class="modal fade" id="migrationDetailsModal" tabindex="-1" role="dialog" aria-labelledby="migrationDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="migrationDetailsModalLabel">Migration Details</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="migrationDetailsContent">
+                    <!-- Content will be loaded dynamically -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                <button id="downloadMigrationBtn" type="button" class="btn btn-primary">
+                    <i class="fas fa-download"></i> Download Results
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Confirmation Modal -->
+<div class="modal fade" id="confirmDeleteModal" tabindex="-1" role="dialog" aria-labelledby="confirmDeleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="confirmDeleteModalLabel">Confirm Deletion</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                Are you sure you want to delete this migration record? This action cannot be undone.
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button id="confirmDeleteBtn" type="button" class="btn btn-danger">Delete</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    let currentMigrationId = null;
+    const migrationsTable = $('#migrationsTable').DataTable({
+        ajax: {
+            url: '/api/migrations',
+            dataSrc: ''
+        },
+        columns: [
+            { data: 'id' },
+            { data: 'source_file' },
+            { 
+                data: 'status',
+                render: function(data, type, row) {
+                    let badgeClass = 'badge-secondary';
+                    if (data === 'completed') badgeClass = 'badge-success';
+                    if (data === 'failed') badgeClass = 'badge-danger';
+                    if (data === 'in_progress') badgeClass = 'badge-primary';
+                    return `<span class="badge ${badgeClass}">${data}</span>`;
+                }
+            },
+            { 
+                data: 'created_at',
+                render: function(data) {
+                    return new Date(data).toLocaleString();
+                }
+            },
+            { 
+                data: 'completed_at',
+                render: function(data) {
+                    return data ? new Date(data).toLocaleString() : '-';
+                }
+            },
+            { data: 'block_count' },
+            {
+                data: null,
+                render: function(data, type, row) {
+                    return `
+                        <div class="btn-group">
+                            <button class="btn btn-sm btn-info view-migration" data-id="${row.id}">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <button class="btn btn-sm btn-danger delete-migration" data-id="${row.id}">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    `;
+                },
+                orderable: false
+            }
+        ],
+        order: [[3, 'desc']] // Sort by created_at descending
+    });
+
+    // Refresh button
+    $('#refresh-btn').click(function() {
+        migrationsTable.ajax.reload();
+    });
+
+    // View migration details
+    $('#migrationsTable').on('click', '.view-migration', function() {
+        const migrationId = $(this).data('id');
+        currentMigrationId = migrationId;
+        
+        $.get(`/api/migration/${migrationId}`, function(data) {
+            const detailsHtml = `
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>Source File</h6>
+                        <p>${data.source_file}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Target File</h6>
+                        <p>${data.target_file}</p>
+                    </div>
+                </div>
+                <div class="row mt-3">
+                    <div class="col-md-4">
+                        <h6>Status</h6>
+                        <span class="badge ${getStatusBadgeClass(data.status)}">${data.status}</span>
+                    </div>
+                    <div class="col-md-4">
+                        <h6>Blocks Migrated</h6>
+                        <p>${data.block_count}</p>
+                    </div>
+                    <div class="col-md-4">
+                        <h6>Created At</h6>
+                        <p>${new Date(data.created_at).toLocaleString()}</p>
+                    </div>
+                </div>
+                ${data.completed_at ? `
+                <div class="row mt-3">
+                    <div class="col-md-6">
+                        <h6>Completed At</h6>
+                        <p>${new Date(data.completed_at).toLocaleString()}</p>
+                    </div>
+                </div>
+                ` : ''}
+                ${data.error_message ? `
+                <div class="row mt-3">
+                    <div class="col-md-12">
+                        <h6>Error Message</h6>
+                        <div class="alert alert-danger">${data.error_message}</div>
+                    </div>
+                </div>
+                ` : ''}
+            `;
+            
+            $('#migrationDetailsContent').html(detailsHtml);
+            $('#migrationDetailsModal').modal('show');
+        }).fail(function() {
+            alert('Failed to load migration details');
+        });
+    });
+
+    // Delete migration
+    $('#migrationsTable').on('click', '.delete-migration', function() {
+        currentMigrationId = $(this).data('id');
+        $('#confirmDeleteModal').modal('show');
+    });
+
+    $('#confirmDeleteBtn').click(function() {
+        if (!currentMigrationId) return;
+        
+        $.ajax({
+            url: `/api/migration/${currentMigrationId}`,
+            method: 'DELETE',
+            success: function() {
+                migrationsTable.ajax.reload();
+                $('#confirmDeleteModal').modal('hide');
+                showToast('Migration deleted successfully', 'success');
+            },
+            error: function() {
+                showToast('Failed to delete migration', 'error');
+            }
+        });
+    });
+
+    // Download migration results
+    $('#downloadMigrationBtn').click(function() {
+        if (!currentMigrationId) return;
+        
+        window.location.href = `/api/migration/${currentMigrationId}/download`;
+    });
+
+    function getStatusBadgeClass(status) {
+        switch(status) {
+            case 'completed': return 'badge-success';
+            case 'failed': return 'badge-danger';
+            case 'in_progress': return 'badge-primary';
+            default: return 'badge-secondary';
+        }
+    }
+
+    function showToast(message, type) {
+        const toast = $(`
+            <div class="toast align-items-center text-white bg-${type} border-0" role="alert" aria-live="assertive" aria-atomic="true">
+                <div class="d-flex">
+                    <div class="toast-body">
+                        ${message}
+                    </div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                </div>
+            </div>
+        `);
+        
+        $('#toastContainer').append(toast);
+        const bsToast = new bootstrap.Toast(toast[0]);
+        bsToast.show();
+        
+        setTimeout(() => {
+            toast.remove();
+        }, 5000);
+    }
+});
+</script>
 {% endblock %}
