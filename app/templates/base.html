@@ -5,35 +5,39 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{% block title %}QTPMigrator{% endblock %}</title>
-    
+
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-<!-- Scripts placed just before closing </body> -->
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.bundle.min.js"></script>
-<script src="https://cdn.datatables.net/1.10.21/js/jquery.dataTables.min.js"></script>
-<script src="https://cdn.datatables.net/1.10.21/js/dataTables.bootstrap4.min.js"></script>
+    <!-- Scripts placed just before closing </body> -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.datatables.net/1.10.21/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.10.21/js/dataTables.bootstrap4.min.js"></script>
 
-
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.0.0/dist/css/bootstrap.min.css"
+        integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
     <!-- Fonts and Icons -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Font Awesome -->
     <style>
         body {
             font-family: 'Inter', sans-serif;
         }
+
         .action-buttons .btn {
             margin-right: 5px;
             margin-bottom: 5px;
         }
+
         .admin-badge {
             font-size: 0.8rem;
         }
+
         .table-responsive {
             overflow-x: auto;
         }
+
         .sidebar-collapse {
             transition: all 0.3s ease;
         }
@@ -77,11 +81,13 @@
                 <div class="mb-6">
                     <p class="text-xs uppercase text-indigo-300 mb-2">Main</p>
                     {% if current_user.is_admin %}
-                    <a href="{{ url_for('main.admin_dashboard') }}" class="block py-2 px-3 rounded hover:bg-indigo-600 flex items-center">
+                    <a href="{{ url_for('main.admin_dashboard') }}"
+                        class="block py-2 px-3 rounded hover:bg-indigo-600 flex items-center">
                         <i class="fas fa-tachometer-alt mr-2 w-5 text-center"></i> Admin Dashboard
                     </a>
                     {% else %}
-                    <a href="{{ url_for('main.dashboard') }}" class="block py-2 px-3 rounded hover:bg-indigo-600 flex items-center">
+                    <a href="{{ url_for('main.dashboard') }}"
+                        class="block py-2 px-3 rounded hover:bg-indigo-600 flex items-center">
                         <i class="fas fa-tachometer-alt mr-2 w-5 text-center"></i> Dashboard
                     </a>
                     {% endif %}
@@ -91,17 +97,21 @@
                 {% if current_user.is_admin %}
                 <div class="mb-6">
                     <p class="text-xs uppercase text-indigo-300 mb-2">Admin</p>
-                    <a href="{{ url_for('main.manage_users') }}" class="block py-2 px-3 rounded hover:bg-indigo-600 flex items-center">
+                    <a href="{{ url_for('main.manage_users') }}"
+                        class="block py-2 px-3 rounded hover:bg-indigo-600 flex items-center">
                         <i class="fas fa-users mr-2 w-5 text-center"></i> Manage Users
                     </a>
-                    <a href="{{ url_for('main.admin_files') }}" class="block py-2 px-3 rounded hover:bg-indigo-600 flex items-center">
+                    <a href="{{ url_for('main.admin_files') }}"
+                        class="block py-2 px-3 rounded hover:bg-indigo-600 flex items-center">
                         <i class="fas fa-file-archive mr-2 w-5 text-center"></i> All Files
                     </a>
-                    <a href="{{ url_for('main.logs') }}" class="block py-2 px-3 rounded hover:bg-indigo-600 flex items-center">
+                    <a href="{{ url_for('main.logs') }}"
+                        class="block py-2 px-3 rounded hover:bg-indigo-600 flex items-center">
                         <i class="fas fa-clipboard-list mr-2 w-5 text-center"></i> System Logs
                     </a>
                     <p class="text-xs uppercase text-indigo-300 mb-2">Configuration</p>
-                    <a href="{{ url_for('main.system_config') }}" class="block py-2 px-3 rounded hover:bg-indigo-600 flex items-center">
+                    <a href="{{ url_for('main.system_config') }}"
+                        class="block py-2 px-3 rounded hover:bg-indigo-600 flex items-center">
                         <i class="fas fa-cog mr-2 w-5 text-center"></i> System
                     </a>
                 </div>
@@ -110,36 +120,43 @@
 
                 <div class="mb-6">
                     <p class="text-xs uppercase text-indigo-300 mb-2">Workstation</p>
-                    <a href="{{ url_for('main.manage_files') }}" class="block py-2 px-3 rounded hover:bg-indigo-600 flex items-center">
+                    <a href="{{ url_for('main.manage_files') }}"
+                        class="block py-2 px-3 rounded hover:bg-indigo-600 flex items-center">
                         <i class="fas fa-file-excel mr-2 w-5 text-center"></i> Manage Files
                     </a>
-                    <a href="{{ url_for('main.migrator') }}" class="block py-2 px-3 rounded hover:bg-indigo-600 flex items-center">
+                    <a href="{{ url_for('main.migrator') }}"
+                        class="block py-2 px-3 rounded hover:bg-indigo-600 flex items-center">
                         <i class="fas fa-exchange-alt mr-2 w-5 text-center"></i> Migrator
                     </a>
-                    <a href="{{ url_for('main.migration_track') }}" class="block py-2 px-3 rounded hover:bg-indigo-600 flex items-center">
+                    <a href="{{ url_for('main.migration_track') }}"
+                        class="block py-2 px-3 rounded hover:bg-indigo-600 flex items-center">
                         <i class="fas fa-stream mr-2 w-5 text-center"></i> Migration Track
                     </a>
                 </div>
 
                 <div class="mb-6">
                     <p class="text-xs uppercase text-indigo-300 mb-2">Configuration</p>
-                    <a href="{{ url_for('main.account_config') }}" class="block py-2 px-3 rounded hover:bg-indigo-600 flex items-center">
+                    <a href="{{ url_for('main.account_config') }}"
+                        class="block py-2 px-3 rounded hover:bg-indigo-600 flex items-center">
                         <i class="fas fa-user mr-2 w-5 text-center"></i> Account
                     </a>
                 </div>
 
-                <div class="mb-6">
+                <!-- <div class="mb-6">
                     <p class="text-xs uppercase text-indigo-300 mb-2">Dictionary</p>
-                    <a href="{{ url_for('main.view_dictionaries') }}" class="block py-2 px-3 rounded hover:bg-indigo-600 flex items-center">
+                    <a href="{{ url_for('main.view_dictionaries') }}"
+                        class="block py-2 px-3 rounded hover:bg-indigo-600 flex items-center">
                         <i class="fas fa-book mr-2 w-5 text-center"></i> View Dictionaries
                     </a>
-                    <a href="{{ url_for('main.add_dictionary') }}" class="block py-2 px-3 rounded hover:bg-indigo-600 flex items-center">
+                    <a href="{{ url_for('main.add_dictionary') }}"
+                        class="block py-2 px-3 rounded hover:bg-indigo-600 flex items-center">
                         <i class="fas fa-plus-circle mr-2 w-5 text-center"></i> Add New Dictionary
                     </a>
-                    <a href="{{ url_for('main.add_dictionary_item') }}" class="block py-2 px-3 rounded hover:bg-indigo-600 flex items-center">
+                    <a href="{{ url_for('main.add_dictionary_item') }}"
+                        class="block py-2 px-3 rounded hover:bg-indigo-600 flex items-center">
                         <i class="fas fa-plus-square mr-2 w-5 text-center"></i> Add New Item
                     </a>
-                </div>
+                </div> -->
                 {% endif %}
 
                 <div class="mb-6">
@@ -159,6 +176,8 @@
         <!-- Main Content -->
         <div class="flex-1 flex flex-col overflow-hidden">
             <!-- Topbar -->
+            {% if current_user.is_authenticated%}
+
             <header class="bg-white shadow-sm p-4 flex justify-between items-center border-b">
                 <h2 class="text-xl font-semibold text-gray-800 flex items-center">
                     <button id="mobile-sidebar-toggle" class="mr-3 text-gray-500 md:hidden">
@@ -173,44 +192,47 @@
                     </button>
                     <div class="relative">
                         <button id="user-menu-button" class="flex items-center focus:outline-none">
-                            <img src="https://ui-avatars.com/api/?name={{ current_user.username }}" alt="User" class="rounded-full h-8 w-8" />
+                            <img src="https://ui-avatars.com/api/?name={{ current_user.username }}" alt="User"
+                                class="rounded-full h-8 w-8" />
                             <span class="ml-2 text-sm font-medium">{{ current_user.username }}</span>
                             <i class="fas fa-chevron-down ml-1 text-xs text-gray-500"></i>
                         </button>
-                        <div id="user-menu" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50">
+                        <div id="user-menu"
+                            class="hidden absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50">
                             <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
                                 <i class="fas fa-user mr-2"></i> Profile
                             </a>
                             <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
                                 <i class="fas fa-cog mr-2"></i> Settings
                             </a>
-                            <a href="{{ url_for('main.logout') }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                            <a href="{{ url_for('main.logout') }}"
+                                class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
                                 <i class="fas fa-sign-out-alt mr-2"></i> Logout
                             </a>
                         </div>
                     </div>
                 </div>
             </header>
-
+            {% endif %}
             <!-- Flash messages -->
             <main class="flex-1 overflow-y-auto p-6 bg-gray-50">
                 {% with messages = get_flashed_messages(with_categories=true) %}
-                    {% if messages %}
-                        {% for category, message in messages %}
-                            <div class="mb-4 p-4 rounded-lg border-l-4 
+                {% if messages %}
+                {% for category, message in messages %}
+                <div class="mb-4 p-4 rounded-lg border-l-4 
                                 {% if category == 'success' %}border-green-500 bg-green-50
                                 {% elif category == 'error' %}border-red-500 bg-red-50
                                 {% else %}border-blue-500 bg-blue-50{% endif %}">
-                                <div class="flex items-center">
-                                    <i class="fas 
+                    <div class="flex items-center">
+                        <i class="fas 
                                         {% if category == 'success' %}fa-check-circle text-green-500
                                         {% elif category == 'error' %}fa-exclamation-circle text-red-500
                                         {% else %}fa-info-circle text-blue-500{% endif %} mr-3"></i>
-                                    <span>{{ message }}</span>
-                                </div>
-                            </div>
-                        {% endfor %}
-                    {% endif %}
+                        <span>{{ message }}</span>
+                    </div>
+                </div>
+                {% endfor %}
+                {% endif %}
                 {% endwith %}
 
                 {% block content %}{% endblock %}

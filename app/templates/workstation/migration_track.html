@@ -100,13 +100,22 @@ $(document).ready(function() {
             { 
                 data: 'status',
                 render: function(data, type, row) {
-                    let badgeClass = 'badge-secondary';
-                    if (data === 'completed') badgeClass = 'badge-success';
-                    if (data === 'failed') badgeClass = 'badge-danger';
-                    if (data === 'in_progress') badgeClass = 'badge-primary';
-                    return `<span class="badge ${badgeClass}">${data}</span>`;
+                    // Ensure status is uppercase
+                    const status = data ? data.toUpperCase() : 'UNKNOWN';
+                    let badgeClass = 'badge-secondary'; // default
+                    
+                    // Set appropriate badge class based on status
+                    if (status === 'COMPLETED') badgeClass = 'badge-success';
+                    else if (status === 'CANCELED') badgeClass = 'badge-secondary';
+                    else if (status === 'ERROR') badgeClass = 'badge-danger';
+                    else if (status === 'PENDING') badgeClass = 'badge-warning';
+                    else if (status === 'FAILED') badgeClass = 'badge-danger';
+                    else if (status === 'IN_PROGRESS') badgeClass = 'badge-primary';
+                    else if (status === 'SCHEDULED') badgeClass = 'badge-info';
+                    
+                    return `<span class="badge ${badgeClass}">${status}</span>`;
                 }
-            },
+            },    
             { 
                 data: 'created_at',
                 render: function(data) {
@@ -130,6 +139,9 @@ $(document).ready(function() {
                             </button>
                             <button class="btn btn-sm btn-danger delete-migration" data-id="${row.id}">
                                 <i class="fas fa-trash"></i>
+                            </button>
+                            <button class="btn btn-sm btn-primary download-migration" data-id="${row.id}">
+                                <i class="fas fa-download"></i>
                             </button>
                         </div>
                     `;
@@ -207,6 +219,12 @@ $(document).ready(function() {
         $('#confirmDeleteModal').modal('show');
     });
 
+    $('#migrationsTable').on('click', '.download-migration', function() {
+        currentMigrationId = $(this).data('id');
+        if (!currentMigrationId) return;
+        window.location.href = `/api/migration/${currentMigrationId}/download`;
+    });
+
     $('#confirmDeleteBtn').click(function() {
         if (!currentMigrationId) return;
         
@@ -232,13 +250,18 @@ $(document).ready(function() {
     });
 
     function getStatusBadgeClass(status) {
-        switch(status) {
-            case 'completed': return 'badge-success';
-            case 'failed': return 'badge-danger';
-            case 'in_progress': return 'badge-primary';
-            default: return 'badge-secondary';
-        }
+    const upperStatus = status ? status.toUpperCase() : 'UNKNOWN';
+    switch(upperStatus) {
+        case 'COMPLETED': return 'badge-success';
+        case 'FAILED': return 'badge-danger';
+        case 'IN_PROGRESS': return 'badge-primary';
+        case 'PENDING': return 'badge-warning';
+        case 'CANCELED': return 'badge-secondary';
+        case 'ERROR': return 'badge-danger';
+        case 'SCHEDULED': return 'badge-info';
+        default: return 'badge-secondary';
     }
+}
 
     function showToast(message, type) {
         const toast = $(`

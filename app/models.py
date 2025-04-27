@@ -6,6 +6,9 @@ from sqlalchemy import CheckConstraint
 from enum import Enum
 from sqlalchemy.dialects.postgresql import JSON
 import json
+import hashlib
+import hmac
+import os
 
 class FileType(Enum):
     SOURCE = 'source'
@@ -13,11 +16,11 @@ class FileType(Enum):
     MIGRATION = 'migration'
 
 class MigrationStatus(str, Enum):
-    PENDING = 'pending'
-    IN_PROGRESS = 'in_progress'
-    COMPLETED = 'completed'
-    FAILED = 'failed'
-    SCHEDULED = 'scheduled'
+    PENDING = 'PENDING'
+    IN_PROGRESS = 'IN_PROGRESS'
+    COMPLETED = 'COMPLETED'
+    FAILED = 'FAILED'
+    SCHEDULED = 'SCHEDULED'
 
     def __str__(self):
         return self.value
@@ -40,10 +43,19 @@ class User(UserMixin, db.Model):
     files = db.relationship('UserFile', backref='user', lazy=True)
 
     def set_password(self, password):
-        self.password_hash = generate_password_hash(password)
+        salt = os.urandom(16)
+        hashed_password = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt, 100000)
+        self.password_hash = f"{salt.hex()}:{hashed_password.hex()}"
 
     def check_password(self, password):
-        return check_password_hash(self.password_hash, password)
+        try:
+            salt, hashed_password = self.password_hash.split(':')
+            salt = bytes.fromhex(salt)
+            expected_hash = bytes.fromhex(hashed_password)
+            provided_hash = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt, 100000)
+            return hmac.compare_digest(provided_hash, expected_hash)
+        except ValueError:
+            return False
 
 class UserFile(db.Model):
     __tablename__ = 'user_files'

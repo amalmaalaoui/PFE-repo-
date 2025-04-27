@@ -15,11 +15,11 @@ from datetime import datetime, timezone
 from pytz import timezone
 tunis_tz = timezone('Africa/Tunis')
 class MigrationStatus(str, Enum):
-    PENDING = 'pending'
-    IN_PROGRESS = 'in_progress'
-    COMPLETED = 'completed'
-    FAILED = 'failed'
-    SCHEDULED = 'scheduled'
+    PENDING = 'PENDING'
+    IN_PROGRESS = 'IN_PROGRESS'
+    COMPLETED = 'COMPLETED'
+    FAILED = 'FAILED'
+    SCHEDULED = 'SCHEDULED'
 
     def __str__(self):
         return self.value
@@ -226,7 +226,7 @@ def migration_progress():
                 return jsonify({'error': 'Migration not found'}), 404
             
             # Calculate progress based on status
-            progress = 100 if migration.status == 'completed' else (
+            progress = 100 if migration.status == 'COMPLETED' else (
                 75 if migration.status == 'in_progress' else 0)
             
             return jsonify({
@@ -280,14 +280,14 @@ def run_migration_task(**kwargs):
                         dict_safal[idlist].to_excel(writer, sheet_name='Safal', index=False)
                 
                 # Update status to completed
-                migration.status = 'completed'
+                migration.status = 'COMPLETED'
                 migration.completed_at = datetime.utcnow()
                 migration.block_count = len(listblock)
                 db.session.commit()
                 
                 print("Migration completed successfully")
                 return {
-                    'status': 'completed',
+                    'status': 'COMPLETED',
                     'block_count': len(listblock),
                     'output_folder': kwargs['output_folder']
                 }
@@ -402,8 +402,13 @@ def download_migration(migration_id):
                                f'migration_{migration.id}')
     if not os.path.exists(download_folder):
         return jsonify({'error': 'Download folder not found'}), 404
-    # Create a zip file of the output folder
-    shutil.make_archive(zip_filepath.replace('.zip', ''), 'zip', download_folder)
+
+    # Ensure the parent directory of zip_filepath exists
+    os.makedirs(os.path.dirname(zip_filepath), exist_ok=True)
     
-    return send_file(zip_filepath, as_attachment=True, download_name=zip_filename)
+    # Create a zip file of the output folder
+    zip_absolute_path = shutil.make_archive(zip_filepath.replace('.zip', ''), 'zip', download_folder)
+    current_app.logger.info(f"Created zip file at: {zip_absolute_path}")
+    
+    return send_file(zip_absolute_path, as_attachment=True, download_name=zip_filename)
 

@@ -70,10 +70,11 @@ def logs():
 @admin_required
 def admin_dashboard():
     total_migrations = Migration.query.count()
-    completed_migrations = Migration.query.filter_by(status='completed').count()
-    failed_migrations = Migration.query.filter_by(status='failed').count()
-    pending_migrations = Migration.query.filter_by(status='pending').count()
-    in_progress_migrations = Migration.query.filter_by(status='in_progress').count()
+    completed_migrations = Migration.query.filter_by(status='COMPLETED').count()
+    failed_migrations = Migration.query.filter_by(status='FAILED').count()
+    pending_migrations = Migration.query.filter_by(status='PENDING').count()
+    in_progress_migrations = Migration.query.filter_by(status='IN_PROGRESS').count()
+    
     
     last_week = datetime.utcnow() - timedelta(days=7)
     last_week_count = Migration.query.filter(Migration.created_at >= last_week).count()

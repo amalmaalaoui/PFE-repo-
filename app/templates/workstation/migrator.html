@@ -67,11 +67,18 @@
                 <span class="px-3 py-1 rounded-full bg-blue-100 text-blue-800 text-sm">
                     Status: <span id="migration-status">Pending</span>
                 </span>
+                
+                </span>
                 <span class="px-3 py-1 rounded-full bg-purple-100 text-purple-800 text-sm hidden" id="job-id-badge">
                     Job ID: <span id="job-id-value">-</span>
                 </span>
+                <button id="download-migration-btn" onclick="downloadMigration()"
+                    class="px-3 py-1 rounded-full bg-indigo-100 text-indigo-800 text-sm">
+                    Download
+                </button>
             </div>
         </div>
+
 
         <div id="countdown-container" class="mb-4 p-4 bg-yellow-50 rounded-lg hidden">
             <div class="flex items-center">
@@ -136,10 +143,10 @@
                     <label class="block text-sm font-medium text-gray-700 mb-1">Migration Status</label>
                     <select
                         class="migration-status-select w-full border rounded p-2 text-sm focus:ring-indigo-500 focus:border-indigo-500">
-                        <option value="pending">Pending</option>
-                        <option value="in-progress">In Progress</option>
-                        <option value="completed">Completed</option>
-                        <option value="failed">Failed</option>
+                        <option value="PENDING">Pending</option>
+                        <option value="IN-PROGRESS">In Progress</option>
+                        <option value="COMPLETED">Completed</option>
+                        <option value="FAILED">Failed</option>
                     </select>
                 </div>
                 <div>
@@ -314,6 +321,15 @@
         activeTabId = tabId;
     }
 
+    function downloadMigration() {
+        const currentMigrationId = document.getElementById('job-id-value').textContent.trim();
+        if (!currentMigrationId || currentMigrationId === '_') {
+            showToast('No migration job found for this tab', 'error');
+            return;
+        }
+        window.location.href = `/api/migration/${currentMigrationId.split('_')[1]}/download`;
+    }
+
     function closeTab(tabId) {
         if (Object.keys(tabs).length <= 1) {
             showToast('Cannot close the last tab', 'error');
@@ -363,7 +379,7 @@
 
                 // Show validation results
                 updateMigrationStatus(resultsContainer, 'Validation Complete', 'blue');
-                resultsContainer.querySelector('#block-count').textContent = data.block_count || 0;
+                resultsContainer.querySelector('#block-count').textContent = data.block_count;
 
                 if (data.validation_errors && data.validation_errors.length > 0) {
                     const errorContainer = resultsContainer.querySelector('#error-container');
@@ -389,122 +405,129 @@
             });
     }
 
-    // Migration Progress System
-    let currentMigrationJobs = {}; // Track all active/scheduled migrations
     function startMigration(tabId) {
-    const tab = tabs[tabId];
-    const scheduleTime = document.getElementById(`schedule-time-${tabId}`).value;
-    const emailNotification = document.getElementById(`email-notification-${tabId}`).checked;
-    const generateReport = document.getElementById(`generate-report-${tabId}`).checked;
-    const ignoreErrors = document.getElementById(`ignore-errors-${tabId}`).checked;
+        const tab = tabs[tabId];
+        const scheduleTime = document.getElementById(`schedule-time-${tabId}`).value;
+        const emailNotification = document.getElementById(`email-notification-${tabId}`).checked;
+        const generateReport = document.getElementById(`generate-report-${tabId}`).checked;
+        const ignoreErrors = document.getElementById(`ignore-errors-${tabId}`).checked;
 
-    if (!tab.fileId) {
-        showToast('Please select a file first', 'error');
-        return;
+        if (!tab.fileId) {
+            showToast('Please select a file first', 'error');
+            return;
+        }
+
+        const data = {
+            file_id: tab.fileId,
+            schedule_time: scheduleTime || null,
+            email_notification: emailNotification,
+            generate_report: generateReport,
+            ignore_errors: ignoreErrors
+        };
+
+        showToast('Starting migration process...', 'info');
+
+        fetch('/api/start_migration', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data)
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    showError(data.error);
+                    return;
+                }
+
+                const resultsContainer = document.getElementById(`results-container-${tabId}`);
+                resultsContainer.innerHTML = document.getElementById('results-template').innerHTML;
+
+                tab.jobId = data.job_id;
+                currentJobId = data.job_id;
+                resultsContainer.querySelector('#job-id-value').textContent = data.job_id;
+                resultsContainer.querySelector('#job-id-badge').classList.remove('hidden');
+
+                if (data.status === 'scheduled') {
+                    updateMigrationStatus(resultsContainer, 'Scheduled', 'blue');
+                    updateTabStatus(tabId, 'scheduled');
+                    showCountdown(resultsContainer, data.countdown, tabId, data.job_id);
+                    showToast('Migration scheduled successfully', 'success');
+                } else {
+                    updateMigrationStatus(resultsContainer, 'In Progress', 'blue');
+                    updateTabStatus(tabId, 'in-progress');
+                    showMigrationProgress(resultsContainer, tabId, data.job_id);
+                    showToast('Migration started successfully', 'success');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showError('Migration failed to start');
+            });
     }
 
-    const data = {
-        file_id: tab.fileId,
-        schedule_time: scheduleTime || null,
-        email_notification: emailNotification,
-        generate_report: generateReport,
-        ignore_errors: ignoreErrors
-    };
+    function showCountdown(container, seconds, tabId, jobId) {
+        const countdownContainer = container.querySelector('#countdown-container');
+        const countdownTimer = container.querySelector('#countdown-timer');
 
-    showToast('Starting migration process...', 'info');
+        countdownContainer.classList.remove('hidden');
 
-    fetch('/api/start_migration', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data)
-    })
-        .then(response => response.json())
-        .then(data => {
-            if (data.error) {
-                showError(data.error);
+        const updateTimer = () => {
+            seconds--;
+            if (seconds <= 0) {
+                countdownTimer.textContent = 'Running now...';
+                clearInterval(interval);
+
+                // Instead of immediately showing progress, wait a moment then check once
+                setTimeout(() => {
+                    checkMigrationStatusOnce(jobId, tabId);
+                }, 2000); // Wait 2 seconds after countdown finishes
                 return;
             }
 
-            const resultsContainer = document.getElementById(`results-container-${tabId}`);
-            resultsContainer.innerHTML = document.getElementById('results-template').innerHTML;
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            const secs = Math.floor(seconds % 60);
+            countdownTimer.textContent = `${hours}h ${minutes}m ${secs}s`;
+        };
 
-            tab.jobId = data.job_id;
-            resultsContainer.querySelector('#job-id-value').textContent = data.job_id;
-            resultsContainer.querySelector('#job-id-badge').classList.remove('hidden');
+        const interval = setInterval(updateTimer, 1000);
+        updateTimer();
+    }
 
-            if (data.status === 'scheduled') {
-                updateMigrationStatus(resultsContainer, 'Scheduled', 'blue');
-                updateTabStatus(tabId, 'scheduled');
-                showCountdown(resultsContainer, data.countdown, tabId, data.job_id);
-                showToast('Migration scheduled successfully', 'success');
-            } else {
-                updateMigrationStatus(resultsContainer, 'In Progress', 'blue');
-                updateTabStatus(tabId, 'in-progress');
-                showMigrationProgress(resultsContainer, tabId, data.job_id);
-                showToast('Migration started successfully', 'success');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            showError('Migration failed to start');
-        });
-}
-    function pollMigrationStatus(jobId) {
-        if (!jobId) return;
+    function checkMigrationStatusOnce(jobId, tabId) {
+        fetch(`/api/migration_progress?job_id=${jobId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    showError(data.error);
+                    return;
+                }
 
-        const pollInterval = setInterval(() => {
-            fetch(`/api/migration_progress?job_id=${jobId}`)
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('Network response was not ok');
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    if (data.error) {
-                        clearInterval(pollInterval);
-                        showError(data.error);
-                        return;
-                    }
+                const resultsContainer = document.getElementById(`results-container-${tabId}`);
 
-                    const jobInfo = currentMigrationJobs[jobId];
-                    if (!jobInfo) {
-                        clearInterval(pollInterval);
-                        return;
-                    }
-
-                    const tabId = jobInfo.tabId;
-                    const resultsContainer = document.getElementById(`results-container-${tabId}`);
-
-                    if (!resultsContainer) {
-                        clearInterval(pollInterval);
-                        return;
-                    }
-
-                    // Update UI based on status
-                    if (data.status === 'completed' || data.status === 'failed') {
-                        clearInterval(pollInterval);
-                        showMigrationResults(resultsContainer, data);
-                        updateTabStatus(tabId, data.status);
-
-                        if (data.status === 'completed') {
-                            showToast('Migration completed successfully', 'success');
-                        } else {
-                            showToast('Migration failed', 'error');
-                        }
-                    } else if (data.status === 'in_progress') {
-                        const progressPercent = Math.round(data.progress * 100);
-                        resultsContainer.querySelector('#progress-percent').textContent = `${progressPercent}%`;
-                        resultsContainer.querySelector('#progress-bar').style.width = `${progressPercent}%`;
-                    }
-                })
-                .catch(error => {
-                    console.error('Polling error:', error);
-                    clearInterval(pollInterval);
-                });
-        }, 2000); // Poll every 2 seconds
+                if (data.status === 'IN_PROGRESS') {
+                    // Migration is now running - show progress
+                    updateMigrationStatus(resultsContainer, 'In Progress', 'blue');
+                    showMigrationProgress(resultsContainer, tabId, jobId);
+                } else if (data.status === 'COMPLETED') {
+                    // Migration completed very quickly - show results
+                    showMigrationResults(resultsContainer, data);
+                    updateTabStatus(tabId, 'COMPLETED');
+                } else if (data.status === 'FAILED') {
+                    // Migration failed immediately - show error
+                    showMigrationResults(resultsContainer, data);
+                    updateTabStatus(tabId, 'FAILED');
+                } else {
+                    // Migration is still scheduled or in another state - show status
+                    updateMigrationStatus(resultsContainer, 'SCHEDULED', 'blue');
+                }
+            })
+            .catch(error => {
+                console.error('Error checking migration status:', error);
+                showError('Failed to check migration status');
+            });
     }
 
     function showMigrationProgress(container, tabId, jobId) {
@@ -512,9 +535,130 @@
         progressContainer.classList.remove('hidden');
 
         // Start polling for progress
-        pollMigrationStatus(jobId);
+        const progressInterval = setInterval(() => {
+            fetch(`/api/migration_progress?job_id=${jobId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        clearInterval(progressInterval);
+                        showError(data.error);
+                        return;
+                    }
+
+                    // Update progress bar
+                    const progressPercent = Math.round(data.progress);
+                    container.querySelector('#progress-percent').textContent = `${progressPercent}%`;
+                    container.querySelector('#progress-bar').style.width = `${progressPercent}%`;
+
+                    // Update block count if available
+                    if (data.block_count !== undefined) {
+                        container.querySelector('#block-count').textContent = data.block_count;
+                    }
+
+                    if (data.status === 'COMPLETED') {
+                        clearInterval(progressInterval);
+                        showMigrationResults(container, data);
+                        updateTabStatus(tabId, 'COMPLETED');
+                    } else if (data.status === 'FAILED') {
+                        clearInterval(progressInterval);
+                        showMigrationResults(container, data);
+                        updateTabStatus(tabId, 'FAILED');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error polling migration progress:', error);
+                    clearInterval(progressInterval);
+                    showError('Failed to check migration progress');
+                });
+        }, 2000); // Poll every 2 seconds
     }
 
+    function showMigrationResults(container, data) {
+        if (!container || !data) return;
+
+        // Hide progress container
+        const progressContainer = container.querySelector('#progress-container');
+        if (progressContainer) progressContainer.classList.add('hidden');
+
+        // Update migration status
+        if (data.status) {
+            const statusColor = data.status === 'completed' ? 'green' :
+                data.status === 'failed' ? 'red' : 'blue';
+            updateMigrationStatus(container, data.status.charAt(0).toUpperCase() + data.status.slice(1), statusColor);
+        }
+
+        // Update block count if available
+        if (data.block_count !== undefined) {
+            container.querySelector('#block-count').textContent = data.block_count;
+        }
+
+        // Show errors if any
+        const errorContainer = container.querySelector('#error-container');
+        const errorList = container.querySelector('#error-list');
+        if (data.error_message || (data.errors && data.errors.length > 0)) {
+            if (errorContainer) errorContainer.classList.remove('hidden');
+            if (errorList) {
+                errorList.innerHTML = '';
+                const errors = data.error_message ? [data.error_message] : data.errors;
+                errors.forEach(err => {
+                    const li = document.createElement('li');
+                    li.textContent = err;
+                    errorList.appendChild(li);
+                });
+            }
+        } else {
+            if (errorContainer) errorContainer.classList.add('hidden');
+        }
+
+        // Show generated files if any
+        const generatedFilesContainer = container.querySelector('#generated-files');
+        if (generatedFilesContainer) {
+            generatedFilesContainer.innerHTML = '';
+            if (data.generated_files && data.generated_files.length > 0) {
+                data.generated_files.forEach(file => {
+                    const fileDiv = document.createElement('div');
+                    fileDiv.className = 'p-2 border border-gray-300 rounded mb-2';
+                    fileDiv.textContent = file;
+                    generatedFilesContainer.appendChild(fileDiv);
+                });
+            }
+        }
+    }
+
+    function updateMigrationStatus(container, status, color) {
+        const statusMap = {
+            'blue': 'bg-blue-100 text-blue-800',
+            'green': 'bg-green-100 text-green-800',
+            'red': 'bg-red-100 text-red-800',
+            'yellow': 'bg-yellow-100 text-yellow-800',
+            'gray': 'bg-gray-100 text-gray-800',
+            'purple': 'bg-purple-100 text-purple-800'
+        };
+
+        const statusElement = container.querySelector('#migration-status');
+        if (statusElement) {
+            statusElement.textContent = status;
+            statusElement.className = `px-3 py-1 rounded-full text-sm ${statusMap[color] || statusMap.blue}`;
+        }
+    }
+
+    function updateTabStatus(tabId, status) {
+        const tab = tabs[tabId];
+        if (!tab) return;
+
+        tab.status = status;
+        const statusIndicator = document.querySelector(`#tab-btn-${tabId} .tab-status-indicator`);
+
+        if (statusIndicator) {
+            // Update indicator color based on status
+            statusIndicator.className = `w-2 h-2 rounded-full mr-2 tab-status-indicator ${status === 'COMPLETED' ? 'bg-green-500' :
+                status === 'IN_PROGRESS' ? 'bg-blue-500 animate-pulse' :
+                    status === 'SCHEDULED' ? 'bg-yellow-500' :
+                        status === 'FAILED' ? 'bg-red-500' :
+                            'bg-gray-300'
+                }`;
+        }
+    }
 
     function cancelScheduledMigration() {
         if (!currentJobId) return;
@@ -537,149 +681,12 @@
             });
     }
 
-    function checkMigrationProgress(jobId) {
-        if (!jobId || jobId === 'undefined') {
-            console.error('Invalid job ID');
-            return Promise.reject('Invalid job ID');
-        }
-
-        return fetch(`/api/migration_progress?job_id=${jobId}`)
-        .then(response => {
-            if (!response.ok) throw new Error('Network error');
-            return response.json();
-        })
-        .then(data => {
-            if (data.error) throw new Error(data.error);
-            
-            // Update UI based on status
-            if (data.status === 'scheduled') {
-                updateScheduledUI(data.time_remaining);
-            } else if (data.status === 'in_progress') {
-                updateProgressBar(data.progress);
-            } else if (data.status === 'completed') {
-                showCompletion(data.block_count);
-            } else if (data.status === 'failed') {
-                showError(data.error_message || 'Migration failed');
-            }
-            
-            return data;
-        });
-    }
-
-    function pollMigrationProgress(jobId) {
-    const interval = setInterval(() => {
-        fetch(`/api/migration_progress?job_id=${jobId}`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.error) {
-                    clearInterval(interval);
-                    showError(data.error);
-                    return;
-                }
-
-                // Update UI based on status
-                updateProgressUI(data);
-                
-                // Stop polling if migration is complete
-                if (data.status === 'completed' || data.status === 'failed') {
-                    clearInterval(interval);
-                    if (data.status === 'completed') {
-                        showSuccess('Migration completed successfully');
-                    } else {
-                        showError(data.error_message || 'Migration failed');
-                    }
-                }
-            })
-            .catch(error => {
-                clearInterval(interval);
-                showError('Failed to check migration progress');
-            });
-    }, 2000); // Poll every 2 seconds
-}
-    function updateProgressUI(data) {
-        const progressElement = document.getElementById('migration-progress');
-
-        if (data.status === 'scheduled') {
-            progressElement.textContent = `Scheduled - Starts in ${Math.round(data.time_remaining)}s`;
-        }
-        else if (data.status === 'completed') {
-            progressElement.textContent = `Completed - ${data.block_count} blocks migrated`;
-        }
-        else if (data.status === 'failed') {
-            progressElement.textContent = 'Migration failed';
-        }
-        else {
-            progressElement.textContent = 'Migration in progress...';
-        }
-    }
-    function updateTabStatus(tabId, status) {
-        const tab = tabs[tabId];
-        if (!tab) return;
-
-        tab.status = status;
-        const statusIndicator = document.querySelector(`#tab-btn-${tabId} .tab-status-indicator`);
-
-        // Update indicator color based on status
-        statusIndicator.className = `w-2 h-2 rounded-full mr-2 tab-status-indicator ${status === 'completed' ? 'bg-green-500' :
-                status === 'in-progress' ? 'bg-blue-500 animate-pulse' :
-                    status === 'scheduled' ? 'bg-yellow-500' :
-                        status === 'failed' ? 'bg-red-500' :
-                            'bg-gray-300'
-            }`;
-    }
-
-    function showMigrationProgress(container, tabId, jobId) {
-        const progressContainer = container.querySelector('#progress-container');
-        progressContainer.classList.remove('hidden');
-
-        // Start polling for progress
-        const progressInterval = setInterval(() => {
-            fetch(`/api/migration_progress?job_id=${jobId}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.error) {
-                        clearInterval(progressInterval);
-                        showError(data.error);
-                        return;
-                    }
-
-                    const progressPercent = Math.round(data.progress );
-                    container.querySelector('#progress-percent').textContent = `${progressPercent}%`;
-                    container.querySelector('#progress-bar').style.width = `${progressPercent}%`;
-
-                    if (data.status === 'completed') {
-                        clearInterval(progressInterval);
-                        showMigrationResults(container, data);
-                        updateTabStatus(tabId, 'completed');
-                    } else if (data.status === 'failed') {
-                        clearInterval(progressInterval);
-                        showMigrationResults(container, data);
-                        updateTabStatus(tabId, 'failed');
-                    }
-                });
-        }, 1000);
-    }
-
-    // Helper functions
-    function showError(message) {
-        showToast(message, 'error');
-    }
-    document.addEventListener('DOMContentLoaded', function () {
-        const jobId = getJobIdFromSomewhere(); // Make sure this returns a valid ID
-
-        if (jobId && jobId !== 'undefined') {
-            pollMigrationProgress(jobId);
-        } else {
-            console.error('No valid job ID found');
-            document.getElementById('migration-progress').textContent = 'Migration status unavailable';
-        }
-    });
     function showToast(message, type = 'info') {
         const toast = document.createElement('div');
         toast.className = `fixed top-4 right-4 p-4 rounded-md shadow-lg text-white ${type === 'error' ? 'bg-red-500' :
-                type === 'success' ? 'bg-green-500' :
-                    type === 'warning' ? 'bg-yellow-500' :
-                        'bg-blue-500'
+            type === 'success' ? 'bg-green-500' :
+                type === 'warning' ? 'bg-yellow-500' :
+                    'bg-blue-500'
             } z-50 transform transition-all duration-300 translate-x-full`;
         toast.innerHTML = `
             <div class="flex items-center">
@@ -707,120 +714,6 @@
         }, 5000);
     }
 
-    function updateMigrationStatus(container, status, color) {
-        const statusMap = {
-            'blue': 'bg-blue-100 text-blue-800',
-            'green': 'bg-green-100 text-green-800',
-            'red': 'bg-red-100 text-red-800',
-            'yellow': 'bg-yellow-100 text-yellow-800',
-            'gray': 'bg-gray-100 text-gray-800',
-            'purple': 'bg-purple-100 text-purple-800'
-        };
-
-        const statusElement = container.querySelector('#migration-status');
-        statusElement.textContent = status;
-        statusElement.className = `px-3 py-1 rounded-full text-sm ${statusMap[color] || statusMap.blue}`;
-    }
-    function showCountdown(container, seconds, tabId, jobId) {
-    const countdownContainer = container.querySelector('#countdown-container');
-    const countdownTimer = container.querySelector('#countdown-timer');
-
-    countdownContainer.classList.remove('hidden');
-
-    const updateTimer = () => {
-        seconds--;
-        if (seconds <= 0) {
-            countdownTimer.textContent = 'Running now...';
-            clearInterval(interval);
-
-            // Instead of immediately showing progress, wait a moment then check once
-            setTimeout(() => {
-                checkMigrationStatusOnce(jobId, tabId);
-            }, 2000); // Wait 2 seconds after countdown finishes
-            return;
-        }
-
-        const hours = Math.floor(seconds / 3600);
-        const minutes = Math.floor((seconds % 3600) / 60);
-        const secs = Math.floor(seconds % 60);
-        countdownTimer.textContent = `${hours}h ${minutes}m ${secs}s`;
-    };
-
-    const interval = setInterval(updateTimer, 1000);
-    updateTimer();
-}
-
-function checkMigrationStatusOnce(jobId, tabId) {
-    fetch(`/api/migration_progress?job_id=${jobId}`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.error) {
-                showError(data.error);
-                return;
-            }
-
-            const resultsContainer = document.getElementById(`results-container-${tabId}`);
-            
-            if (data.status === 'in_progress') {
-                // Migration is now running - show progress
-                updateMigrationStatus(resultsContainer, 'In Progress', 'blue');
-                showMigrationProgress(resultsContainer, tabId, jobId);
-            } else if (data.status === 'completed') {
-                // Migration completed very quickly - show results
-                showMigrationResults(resultsContainer, data);
-                updateTabStatus(tabId, 'completed');
-            } else if (data.status === 'failed') {
-                // Migration failed immediately - show error
-                showMigrationResults(resultsContainer, data);
-                updateTabStatus(tabId, 'failed');
-            }
-        })
-        .catch(error => {
-            console.error('Error checking migration status:', error);
-            showError('Failed to check migration status');
-        });
-}
-
-function showMigrationProgress(container, tabId, jobId) {
-    const progressContainer = container.querySelector('#progress-container');
-    progressContainer.classList.remove('hidden');
-
-    // Check progress once immediately
-    checkProgressOnce();
-
-    // Then set a single check after 5 seconds
-    const progressCheck = setTimeout(checkProgressOnce, 5000);
-
-    function checkProgressOnce() {
-        fetch(`/api/migration_progress?job_id=${jobId}`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.error) {
-                    clearTimeout(progressCheck);
-                    showError(data.error);
-                    return;
-                }
-
-                const progressPercent = Math.round(data.progress);
-                container.querySelector('#progress-percent').textContent = `${progressPercent}%`;
-                container.querySelector('#progress-bar').style.width = `${progressPercent}%`;
-
-                if (data.status === 'completed') {
-                    clearTimeout(progressCheck);
-                    showMigrationResults(container, data);
-                    updateTabStatus(tabId, 'completed');
-                } else if (data.status === 'failed') {
-                    clearTimeout(progressCheck);
-                    showMigrationResults(container, data);
-                    updateTabStatus(tabId, 'failed');
-                } else if (progressPercent >= 100) {
-                    // If progress is 100% but status isn't complete yet
-                    clearTimeout(progressCheck);
-                    setTimeout(checkProgressOnce, 1000);
-                }
-            });
-    }
-}
     function formatFileSize(bytes) {
         if (bytes === 0) return '0 Bytes';
         const k = 1024;

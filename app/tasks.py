@@ -33,14 +33,14 @@ def run_migration_task(app, **kwargs):
                         dict_QTP[idlist].to_excel(writer, sheet_name='QTP', index=False)
                         dict_safal[idlist].to_excel(writer, sheet_name='Safal', index=False)
                 
-                migration.status = 'completed'
+                migration.status = 'COMPLETED'
                 migration.completed_at = datetime.utcnow()
                 migration.block_count = len(listblock)
                 db.session.commit()
                 
-                print("Migration completed successfully")
+                print("Migration COMPLETED successfully")
                 return {
-                    'status': 'completed',
+                    'status': 'COMPLETED',
                     'block_count': len(listblock),
                     'output_folder': kwargs['output_folder']
                 }

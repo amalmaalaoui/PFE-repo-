@@ -534,10 +534,10 @@ def update_profile():
 def admin_dashboard():
     # Migration statistics
     total_migrations = Migration.query.count()
-    completed_migrations = Migration.query.filter_by(status='completed').count()
-    failed_migrations = Migration.query.filter_by(status='failed').count()
-    pending_migrations = Migration.query.filter_by(status='pending').count()
-    in_progress_migrations = Migration.query.filter_by(status='in_progress').count()
+    completed_migrations = Migration.query.filter_by(status='COMPLETED').count()
+    failed_migrations = Migration.query.filter_by(status='FAILED').count()
+    pending_migrations = Migration.query.filter_by(status='PENDING').count()
+    in_progress_migrations = Migration.query.filter_by(status='IN_PROGRESS').count()
     
     # Calculate changes from last week
     last_week = datetime.utcnow() - timedelta(days=7)
@@ -566,9 +566,9 @@ def admin_dashboard():
     return render_template('admin/dashboard.html',
         migration_stats={
             'total': total_migrations,
-            'completed': completed_migrations,
-            'failed': failed_migrations,
-            'pending': pending_migrations,
+            'COMPLETED': completed_migrations,
+            'FAILED': failed_migrations,
+            'PENDING': pending_migrations,
             'in_progress': in_progress_migrations,
             'change_percent': change_percent,
             'avg_blocks': float(avg_blocks),
@@ -661,7 +661,7 @@ def migration_progress():
                 'job_id': job_id
             })
         
-        # Check database for completed/failed migrations
+        # Check database for COMPLETED/failed migrations
         try:
             migration_id = int(job_id.replace('migration_', ''))
             migration = Migration.query.get(migration_id)
@@ -713,13 +713,13 @@ def run_migration_task(filepath, output_folder, migration_id, **kwargs):
         
         # Update migration status
         migration = Migration.query.get(migration_id)
-        migration.status = 'completed'
+        migration.status = 'COMPLETED'
         migration.completed_at = datetime.now()
         migration.block_count = len(listblock)
         db.session.commit()
         
         return {
-            'status': 'completed',
+            'status': 'COMPLETED',
             'block_count': len(listblock),
             'output_folder': output_folder
         }

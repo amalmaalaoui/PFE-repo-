@@ -20,13 +20,13 @@
                 <tr>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ migration.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm">
-                        {% if migration.status == 'completed' %}
+                        {% if migration.status == 'COMPLETED' %}
                             <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Completed</span>
-                        {% elif migration.status == 'failed' %}
+                        {% elif migration.status == 'FAILED' %}
                             <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">Failed</span>
-                        {% elif migration.status == 'pending' %}
+                        {% elif migration.status == 'PENDING' %}
                             <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">Pending</span>
-                        {% elif migration.status == 'in_progress' %}
+                        {% elif migration.status == 'IN_PROGRESS' %}
                             <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">In Progress</span>
                         {% else %}
                             <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">{{ migration.status }}</span>
