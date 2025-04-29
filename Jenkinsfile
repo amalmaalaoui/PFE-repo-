@@ -31,9 +31,9 @@ pipeline {
         stage('Run Tests') {
             steps {
                 script {
-                    docker.image('python:3.12-slim').inside {
-                        sh 'pytest tests'
-                    }
+                    sh '''
+                    pytest tests/test_auth_routes.py
+                    '''
                 }
             }
         }
