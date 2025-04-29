@@ -20,8 +20,8 @@ pipeline {
                     // Use Python 3.12 docker image for environment
                     docker.image('python:3.12-slim').inside {
                         sh '''
-                        python -m pip install --upgrade pip setuptools wheel
-                        pip install -r requirements.txt
+                        python -m pip install --upgrade --break-system-packages pip setuptools wheel
+                        pip install --break-system-packages -r requirements.txt
                         '''
                     }
                 }
