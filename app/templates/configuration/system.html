@@ -1,245 +1,380 @@
 {% extends "base.html" %}
 
-{% block title %}System Configuration{% endblock %}
-{% block header %}System Configuration{% endblock %}
+{% block title %}System Information{% endblock %}
+
+{% block header %}Admin - System Information{% endblock %}
+
+{% block styles %}
+{{ super() }}
+<style>
+    .card {
+        margin-bottom: 20px;
+        border-radius: 10px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        transition: all 0.3s ease;
+    }
+    .card:hover {
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+        transform: translateY(-2px);
+    }
+    .card-header {
+        font-weight: 600;
+        border-radius: 10px 10px 0 0 !important;
+    }
+    .progress {
+        height: 20px;
+        border-radius: 10px;
+    }
+    .progress-bar {
+        line-height: 20px;
+    }
+    .system-value {
+        font-size: 1.5rem;
+        font-weight: 600;
+    }
+    .system-label {
+        color: #6c757d;
+        font-size: 0.9rem;
+    }
+    .refresh-btn {
+        cursor: pointer;
+        transition: transform 0.5s ease;
+    }
+    .refresh-btn:hover {
+        transform: rotate(180deg);
+    }
+    .status-indicator {
+        width: 15px;
+        height: 15px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 5px;
+    }
+    .status-healthy {
+        background-color: #28a745;
+    }
+    .status-warning {
+        background-color: #ffc107;
+    }
+    .status-critical {
+        background-color: #dc3545;
+    }
+    .info-table th {
+        width: 40%;
+    }
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-    <!-- System Settings -->
-    <div class="md:col-span-2 bg-white rounded-lg shadow p-6">
-        <h3 class="text-lg font-semibold mb-4">System Settings</h3>
-        
-        <form id="system-settings-form" method="POST" action="#">
-            <div class="space-y-4">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Application Name</label>
-                    <input type="text" name="app_name" value="{{ config.APP_NAME }}" 
-                           class="w-full border rounded-md p-2" required>
-                </div>
-                
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Maintenance Mode</label>
-                        <select name="maintenance_mode" class="w-full border rounded-md p-2">
-                            <option value="false" {% if not config.MAINTENANCE_MODE %}selected{% endif %}>Disabled</option>
-                            <option value="true" {% if config.MAINTENANCE_MODE %}selected{% endif %}>Enabled</option>
-                        </select>
+<div class="container-fluid">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">System Dashboard</h1>
+        <div>
+            <span class="mr-2">Last updated: <span id="lastUpdated">{{ current_time }}</span></span>
+            <button id="refreshBtn" class="btn btn-sm btn-primary refresh-btn">
+                <i class="fas fa-sync-alt"></i> Refresh
+            </button>
+        </div>
+    </div>
+
+    <!-- System Status Row -->
+    <div class="row">
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-primary h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="system-label">Server Status</div>
+                            <div class="system-value" id="serverStatus">
+                                <span class="status-indicator status-healthy"></span>
+                                <span>Operational</span>
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-server fa-2x text-gray-300"></i>
+                        </div>
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Max File Size (MB)</label>
-                        <input type="number" name="max_file_size" value="{{ config.MAX_FILE_SIZE_MB }}" 
-                               class="w-full border rounded-md p-2" min="1" required>
-                    </div>
-                </div>
-                
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Allowed File Extensions</label>
-                    <input type="text" name="allowed_extensions" value="{{ config.ALLOWED_EXTENSIONS|join(',') }}" 
-                           class="w-full border rounded-md p-2" placeholder="xlsx,xls,csv" required>
-                    <p class="text-xs text-gray-500 mt-1">Comma-separated list</p>
-                </div>
-                
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">System Timezone</label>
-                    <select name="timezone" class="w-full border rounded-md p-2">
-                        {% for tz in timezones %}
-                        <option value="{{ tz }}" {% if tz == config.TIMEZONE %}selected{% endif %}>{{ tz }}</option>
-                        {% endfor %}
-                    </select>
                 </div>
             </div>
-            
-            <div class="pt-6">
-                <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700">
-                    Save Settings
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-success h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="system-label">CPU Usage</div>
+                            <div class="system-value" id="cpuUsage">--%</div>
+                            <div class="progress mt-2">
+                                <div id="cpuProgress" class="progress-bar bg-success" role="progressbar" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-microchip fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-info h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="system-label">Memory Usage</div>
+                            <div class="system-value" id="memoryUsage">--%</div>
+                            <div class="progress mt-2">
+                                <div id="memoryProgress" class="progress-bar bg-info" role="progressbar" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-memory fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-warning h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="system-label">Disk Usage</div>
+                            <div class="system-value" id="diskUsage">--%</div>
+                            <div class="progress mt-2">
+                                <div id="diskProgress" class="progress-bar bg-warning" role="progressbar" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-hdd fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- System Information Row -->
+    <div class="row">
+        <div class="col-lg-6">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3 bg-primary text-white">
+                    <h6 class="m-0 font-weight-bold">Application Information</h6>
+                </div>
+                <div class="card-body">
+                    <table class="table table-bordered info-table">
+                        <tbody>
+                            <tr>
+                                <th>Flask Version</th>
+                                <td id="flaskVersion">--</td>
+                            </tr>
+                            <tr>
+                                <th>Python Version</th>
+                                <td id="pythonVersion">--</td>
+                            </tr>
+                            <tr>
+                                <th>Database</th>
+                                <td id="database">--</td>
+                            </tr>
+                            <tr>
+                                <th>Server Uptime</th>
+                                <td id="uptime">--</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- System Health Timeline -->
+    <div class="row">
+        <div class="col-lg-12">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3 bg-secondary text-white">
+                    <h6 class="m-0 font-weight-bold">System Health History</h6>
+                </div>
+                <div class="card-body">
+                    <div class="chart-area">
+                        <canvas id="healthChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+$(document).ready(function() {
+    // Initialize chart
+    const ctx = document.getElementById('healthChart').getContext('2d');
+    const healthChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [
+                {
+                    label: 'CPU Usage (%)',
+                    data: [],
+                    borderColor: '#28a745',
+                    backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                    tension: 0.1,
+                    fill: true
+                },
+                {
+                    label: 'Memory Usage (%)',
+                    data: [],
+                    borderColor: '#17a2b8',
+                    backgroundColor: 'rgba(23, 162, 184, 0.1)',
+                    tension: 0.1,
+                    fill: true
+                },
+                {
+                    label: 'Disk Usage (%)',
+                    data: [],
+                    borderColor: '#ffc107',
+                    backgroundColor: 'rgba(255, 193, 7, 0.1)',
+                    tension: 0.1,
+                    fill: true
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 100,
+                    ticks: {
+                        callback: function(value) {
+                            return value + '%';
+                        }
+                    }
+                }
+            },
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return context.dataset.label + ': ' + context.raw + '%';
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    // Function to update system info
+    function updateSystemInfo() {
+        $.get('/admin/system_info', function(data) {
+            if (data.success) {
+                // Update metrics
+                $('#cpuUsage').text(data.cpu_usage + '%');
+                $('#cpuProgress').css('width', data.cpu_usage + '%');
+                $('#memoryUsage').text(data.memory_usage + '%');
+                $('#memoryProgress').css('width', data.memory_usage + '%');
+                $('#diskUsage').text(data.disk_usage + '%');
+                $('#diskProgress').css('width', data.disk_usage + '%');
+                
+                // Update server status based on metrics
+                updateServerStatus(data);
+                
+                // Update application info
+                $('#flaskVersion').text(data.flask_version);
+                $('#pythonVersion').text(data.python_version);
+                $('#database').text(data.database);
+                $('#serverName').text(data.server);
+                $('#uptime').text(data.uptime);
+                
+                // Update last updated time
+                const now = new Date();
+                $('#lastUpdated').text(now.toLocaleString());
+                
+                // Update chart
+                updateChart(data);
+            }
+        }).fail(function() {
+            showAlert('Failed to fetch system information', 'danger');
+        });
+    }
+
+    // Function to update server status indicator
+    function updateServerStatus(data) {
+        const statusElement = $('#serverStatus');
+        const indicator = statusElement.find('.status-indicator');
+        const statusText = statusElement.find('span').last();
+        
+        // Reset classes
+        indicator.removeClass('status-healthy status-warning status-critical');
+        
+        // Determine overall status (simple logic - can be enhanced)
+        if (data.cpu_usage > 90 || data.memory_usage > 90 || data.disk_usage > 90) {
+            indicator.addClass('status-critical');
+            statusText.text('Critical');
+        } else if (data.cpu_usage > 70 || data.memory_usage > 70 || data.disk_usage > 70) {
+            indicator.addClass('status-warning');
+            statusText.text('Warning');
+        } else {
+            indicator.addClass('status-healthy');
+            statusText.text('Healthy');
+        }
+    }
+
+    // Function to update the health chart
+    function updateChart(data) {
+        const chart = healthChart;
+        const labels = chart.data.labels;
+        const datasets = chart.data.datasets;
+        
+        // Add new data point (limit to 20 points)
+        const now = new Date();
+        const timeLabel = now.getHours() + ':' + now.getMinutes() + ':' + now.getSeconds();
+        
+        if (labels.length >= 20) {
+            labels.shift();
+            datasets.forEach(dataset => dataset.data.shift());
+        }
+        
+        labels.push(timeLabel);
+        datasets[0].data.push(data.cpu_usage);
+        datasets[1].data.push(data.memory_usage);
+        datasets[2].data.push(data.disk_usage);
+        
+        chart.update();
+    }
+
+    // Function to show alert
+    function showAlert(message, type) {
+        const alert = $(`
+            <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+                ${message}
+                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
                 </button>
             </div>
-        </form>
-    </div>
+        `);
+        
+        $('#alertsContainer').append(alert);
+        setTimeout(() => alert.alert('close'), 5000);
+    }
+
+    // Initial load
+    updateSystemInfo();
     
-    <!-- System Information -->
-    <div class="bg-white rounded-lg shadow p-6">
-        <h3 class="text-lg font-semibold mb-4">System Information</h3>
-        
-
-
-        
-        <div class="mt-6 pt-4 border-t">
-            <button onclick="refreshSystemInfo()" class="text-indigo-600 hover:text-indigo-800 text-sm flex items-center">
-                <i class="fas fa-sync-alt mr-2"></i> Refresh System Info
-            </button>
-        </div>
-    </div>
-</div>
-
-<!-- Database Management -->
-<div class="mt-6 bg-white rounded-lg shadow p-6">
-    <h3 class="text-lg font-semibold mb-4">Database Management</h3>
+    // Set up auto-refresh every 5 seconds
+    setInterval(updateSystemInfo, 5000);
     
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div class="border rounded-lg p-4">
-            <h4 class="font-medium mb-2">Backup Database</h4>
-            <p class="text-sm text-gray-600 mb-3">Create a complete backup of the database</p>
-            <button onclick="backupDatabase()" class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700">
-                Create Backup
-            </button>
-        </div>
-        
-        <div class="border rounded-lg p-4">
-            <h4 class="font-medium mb-2">Optimize Database</h4>
-            <p class="text-sm text-gray-600 mb-3">Clean up and optimize database performance</p>
-            <button onclick="optimizeDatabase()" class="w-full bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700">
-                Run Optimization
-            </button>
-        </div>
-        
-        <div class="border rounded-lg p-4">
-            <h4 class="font-medium mb-2">Reset Cache</h4>
-            <p class="text-sm text-gray-600 mb-3">Clear all cached data</p>
-            <button onclick="resetCache()" class="w-full bg-yellow-600 text-white py-2 px-4 rounded-md hover:bg-yellow-700">
-                Clear Cache
-            </button>
-        </div>
-    </div>
-</div>
-
-<!-- System Logs -->
-<div class="mt-6 bg-white rounded-lg shadow p-6">
-    <div class="flex justify-between items-center mb-4">
-        <h3 class="text-lg font-semibold">System Logs</h3>
-        <div class="flex space-x-2">
-            <select id="log-level" class="border rounded p-2 text-sm">
-                <option value="all">All Levels</option>
-                <option value="info">Info</option>
-                <option value="warning">Warning</option>
-                <option value="error">Error</option>
-            </select>
-            <button onclick="refreshLogs()" class="bg-indigo-600 text-white px-4 py-2 rounded-md text-sm hover:bg-indigo-700">
-                Refresh
-            </button>
-        </div>
-    </div>
-    
-    <div class="bg-gray-50 p-4 rounded-md font-mono text-sm overflow-x-auto max-h-96">
-        <pre id="system-logs">{{ system_logs|join('\n') }}</pre>
-    </div>
-</div>
-
-<!-- Backup Modal -->
-<div id="backup-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
-    <div class="bg-white rounded-lg p-6 w-full max-w-md">
-        <div class="flex justify-between items-center mb-4">
-            <h3 class="text-xl font-semibold">Database Backup</h3>
-            <button onclick="hideBackupModal()" class="text-gray-500 hover:text-gray-700">
-                <i class="fas fa-times"></i>
-            </button>
-        </div>
-        
-        <div id="backup-progress" class="hidden">
-            <div class="flex justify-between mb-1">
-                <span class="text-sm font-medium">Progress</span>
-                <span id="backup-percent" class="text-sm font-medium">0%</span>
-            </div>
-            <div class="w-full bg-gray-200 rounded-full h-2.5">
-                <div id="backup-progress-bar" class="bg-blue-600 h-2.5 rounded-full" style="width: 0%"></div>
-            </div>
-        </div>
-        
-        <div id="backup-complete" class="hidden">
-            <div class="flex items-center text-green-600 mb-4">
-                <i class="fas fa-check-circle mr-2"></i>
-                <span>Backup completed successfully!</span>
-            </div>
-            <a id="backup-download-link" href="#" class="text-indigo-600 hover:text-indigo-800">
-                <i class="fas fa-download mr-2"></i> Download Backup File
-            </a>
-        </div>
-        
-        <div class="flex justify-end space-x-3 mt-6">
-            <button type="button" onclick="hideBackupModal()" class="px-4 py-2 border rounded text-gray-700 hover:bg-gray-50">
-                Close
-            </button>
-            <button id="start-backup-btn" type="button" onclick="startBackup()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
-                Start Backup
-            </button>
-        </div>
-    </div>
-</div>
-
-<script>
-// System settings form
-document.getElementById('system-settings-form').addEventListener('submit', function(e) {
-    e.preventDefault();
-    const formData = new FormData(this);
-    
-    fetch(this.action, {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showToast('System settings updated successfully', 'success');
-        } else {
-            showToast(data.error || 'Failed to update settings', 'error');
-        }
-    })
-    .catch(error => {
-        showToast('Network error occurred', 'error');
+    // Manual refresh button
+    $('#refreshBtn').click(function() {
+        updateSystemInfo();
     });
 });
-
-// Database backup functions
-function backupDatabase() {
-    document.getElementById('backup-modal').classList.remove('hidden');
-    document.getElementById('backup-progress').classList.add('hidden');
-    document.getElementById('backup-complete').classList.add('hidden');
-    document.getElementById('start-backup-btn').disabled = false;
-}
-
-function hideBackupModal() {
-    document.getElementById('backup-modal').classList.add('hidden');
-}
-
-function startBackup() {
-    const progressBar = document.getElementById('backup-progress-bar');
-    const percentText = document.getElementById('backup-percent');
-    const startBtn = document.getElementById('start-backup-btn');
-    
-    startBtn.disabled = true;
-    document.getElementById('backup-progress').classList.remove('hidden');
-    
-    // Simulate progress (replace with real SSE or WebSocket updates)
-    let progress = 0;
-    const interval = setInterval(() => {
-        progress += Math.random() * 10;
-        if (progress >= 100) {
-            progress = 100;
-            clearInterval(interval);
-            document.getElementById('backup-complete').classList.remove('hidden');
-        }
-        
-        progressBar.style.width = `${progress}%`;
-        percentText.textContent = `${Math.round(progress)}%`;
-    }, 300);
-    
-    // In a real app, you would use Server-Sent Events or WebSockets
-    fetch('/admin/backup_database')
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                document.getElementById('backup-download-link').href = data.download_url;
-            } else {
-                showToast(data.error || 'Backup failed', 'error');
-                hideBackupModal();
-            }
-        });
-}
-
-
-function showToast(message, type) {
-    // Implement toast notification here
-    alert(`${type}: ${message}`); // Replace with actual toast implementation
-}
 </script>
 {% endblock %}

@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+
+{% block title %}Help Center{% endblock %}
+
+{% block header %}Help Center{% endblock %}
+
+{% block styles %}
+{{ super() }}
+<style>
+    .help-card {
+        transition: all 0.3s ease;
+        margin-bottom: 20px;
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    .help-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+    }
+    .help-card .card-header {
+        background-color: #f8f9fa;
+        border-bottom: 1px solid #eee;
+        font-weight: 600;
+    }
+    .help-section {
+        margin-bottom: 40px;
+    }
+    .search-box {
+        margin-bottom: 30px;
+    }
+    .faq-item {
+        margin-bottom: 15px;
+    }
+    .faq-question {
+        font-weight: 600;
+        color: #2c3e50;
+        cursor: pointer;
+    }
+    .faq-answer {
+        padding: 15px;
+        background-color: #f8f9fa;
+        border-radius: 5px;
+        margin-top: 10px;
+    }
+    .video-container {
+        position: relative;
+        padding-bottom: 56.25%;
+        height: 0;
+        overflow: hidden;
+        margin-bottom: 20px;
+    }
+    .video-container iframe {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        border-radius: 5px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row">
+        <div class="col-md-8 mx-auto">
+            <div class="search-box">
+                <div class="input-group mb-3">
+                    <input type="text" class="form-control form-control-lg" placeholder="Search help articles...">
+                    <button class="btn btn-primary" type="button">
+                        <i class="fas fa-search"></i> Search
+                    </button>
+                </div>
+            </div>
+
+            <div class="help-section">
+                <h3 class="mb-4"><i class="fas fa-question-circle mr-2"></i>Getting Started</h3>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="help-card card">
+                            <div class="card-header">
+                                <i class="fas fa-user-plus mr-2"></i>Account Setup
+                            </div>
+                            <div class="card-body">
+                                <p>Learn how to create and configure your account to get the most out of our platform.</p>
+                                <a href="#" class="btn btn-sm btn-outline-primary">Read Guide</a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="help-card card">
+                            <div class="card-header">
+                                <i class="fas fa-upload mr-2"></i>First Migration
+                            </div>
+                            <div class="card-body">
+                                <p>Step-by-step instructions for performing your first data migration.</p>
+                                <a href="#" class="btn btn-sm btn-outline-primary">Read Guide</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="help-section">
+                <h3 class="mb-4"><i class="fas fa-video mr-2"></i>Video Tutorials</h3>
+                <div class="video-container">
+                    <iframe src="https://www.youtube.com/embed/example" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                </div>
+                <div class="text-center">
+                    <a href="#" class="btn btn-primary">View All Tutorials</a>
+                </div>
+            </div>
+
+            <div class="help-section">
+                <h3 class="mb-4"><i class="fas fa-question mr-2"></i>Frequently Asked Questions</h3>
+                <div class="faq-item">
+                    <div class="faq-question" data-toggle="collapse" data-target="#faq1">
+                        <i class="fas fa-chevron-right mr-2"></i> How do I reset my password?
+                    </div>
+                    <div id="faq1" class="faq-answer collapse">
+                        You can reset your password by clicking on the "Forgot Password" link on the login page. You'll receive an email with instructions to create a new password.
+                    </div>
+                </div>
+                <div class="faq-item">
+                    <div class="faq-question" data-toggle="collapse" data-target="#faq2">
+                        <i class="fas fa-chevron-right mr-2"></i> What file formats are supported for migration?
+                    </div>
+                    <div id="faq2" class="faq-answer collapse">
+                        We currently support CSV, Excel (.xlsx, .xls), and JSON formats. Support for additional formats is coming soon.
+                    </div>
+                </div>
+                <div class="faq-item">
+                    <div class="faq-question" data-toggle="collapse" data-target="#faq3">
+                        <i class="fas fa-chevron-right mr-2"></i> How long do migrations typically take?
+                    </div>
+                    <div id="faq3" class="faq-answer collapse">
+                        Migration time depends on the size of your data. Small files (under 1MB) usually complete in seconds, while larger files may take several minutes.
+                    </div>
+                </div>
+            </div>
+
+            <div class="help-section text-center py-4">
+                <h4 class="mb-3">Still need help?</h4>
+                <p>Our support team is ready to assist you with any questions.</p>
+                <a href="{{ url_for('main.contact') }}" class="btn btn-primary">
+                    <i class="fas fa-envelope mr-2"></i> Contact Support
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+$(document).ready(function() {
+    // FAQ toggle functionality
+    $('.faq-question').click(function() {
+        $(this).find('i').toggleClass('fa-chevron-right fa-chevron-down');
+    });
+
+    // Search functionality
+    $('.search-box button').click(function() {
+        const query = $('.search-box input').val().toLowerCase();
+        if (query) {
+            // Implement search logic here
+            alert('Searching for: ' + query);
+        }
+    });
+});
+</script>
+{% endblock %}

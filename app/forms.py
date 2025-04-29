@@ -1,5 +1,5 @@
 from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, BooleanField, SubmitField
+from wtforms import StringField, PasswordField, BooleanField, SubmitField, TextAreaField
 from wtforms.validators import DataRequired, Email, EqualTo, Length, Optional, ValidationError
 
 class UserForm(FlaskForm):
@@ -21,3 +21,8 @@ class EditUserForm(FlaskForm):
     submit = SubmitField('Update User')
 
 
+class ContactForm(FlaskForm):
+    name = StringField('Name', validators=[DataRequired(), Length(min=2, max=50)])
+    email = StringField('Email', validators=[DataRequired(), Email()])
+    subject = StringField('Subject', validators=[DataRequired(), Length(min=5, max=100)])
+    message = TextAreaField('Message', validators=[DataRequired(), Length(min=10, max=2000)])

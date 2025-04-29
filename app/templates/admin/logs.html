@@ -1,47 +1,373 @@
-{% extends "admin/base_admin.html" %}
+{% extends "base.html" %}
 
 {% block title %}Migration Logs{% endblock %}
 
+{% block header %}Admin - Migration Logs{% endblock %}
+
+{% block styles %}
+{{ super() }}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.11.5/css/dataTables.bootstrap5.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.2.2/css/buttons.dataTables.min.css">
+<style>
+    .badge {
+        font-size: 0.9em;
+        padding: 0.5em 0.75em;
+    }
+    .log-row:hover {
+        background-color: #f8f9fa;
+        cursor: pointer;
+    }
+    #filters .form-group {
+        margin-right: 15px;
+        margin-bottom: 10px;
+    }
+    .status-selector {
+        margin-right: 5px;
+        margin-bottom: 5px;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="container mx-auto px-4 py-6">
-    <h1 class="text-3xl font-bold mb-6 text-gray-800">Migration Logs</h1>
-    <div class="overflow-x-auto bg-white rounded-lg shadow">
-        <table class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-gray-50">
-                <tr>
-                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Timestamp</th>
-                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Block Count</th>
-                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Details</th>
-                </tr>
-            </thead>
-            <tbody class="bg-white divide-y divide-gray-200">
-                {% for migration in migrations %}
-                <tr>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ migration.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm">
-                        {% if migration.status == 'COMPLETED' %}
-                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Completed</span>
-                        {% elif migration.status == 'FAILED' %}
-                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">Failed</span>
-                        {% elif migration.status == 'PENDING' %}
-                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">Pending</span>
-                        {% elif migration.status == 'IN_PROGRESS' %}
-                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">In Progress</span>
-                        {% else %}
-                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">{{ migration.status }}</span>
-                        {% endif %}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ migration.block_count }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{{ migration.details if migration.details else 'N/A' }}</td>
-                </tr>
-                {% else %}
-                <tr>
-                    <td colspan="4" class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">No migration logs found.</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+<div class="container-fluid">
+    <div class="card shadow mb-4">
+        <div class="card-header py-3 d-flex justify-content-between align-items-center">
+            <h6 class="m-0 font-weight-bold text-primary">Migration Logs</h6>
+            <div>
+                <button id="refresh-btn" class="btn btn-sm btn-primary">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+            </div>
+        </div>
+        <div class="card-body">
+            <!-- Filters -->
+            <div id="filters" class="row mb-3">
+                <div class="col-md-12 d-flex flex-wrap">
+                    <div class="form-group">
+                        <label for="status-filter">Status:</label>
+                        <select id="status-filter" class="form-control form-control-sm">
+                            <option value="">All Statuses</option>
+                            <option value="completed">Completed</option>
+                            <option value="failed">Failed</option>
+                            <option value="in_progress">In Progress</option>
+                            <option value="pending">Pending</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="date-from">From:</label>
+                        <input type="date" id="date-from" class="form-control form-control-sm">
+                    </div>
+                    <div class="form-group">
+                        <label for="date-to">To:</label>
+                        <input type="date" id="date-to" class="form-control form-control-sm">
+                    </div>
+                    <div class="form-group">
+                        <label for="user-filter">User:</label>
+                        <select id="user-filter" class="form-control form-control-sm">
+                            <option value="">All Users</option>
+                            {% for user in all_users %}
+                            <option value="{{ user.id }}">{{ user.username }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group align-self-end">
+                        <button id="reset-filters" class="btn btn-sm btn-secondary">
+                            <i class="fas fa-times"></i> Reset
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Logs Table -->
+            <div class="table-responsive">
+                <table class="table table-bordered" id="logsTable" width="100%" cellspacing="0">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>User</th>
+                            <th>Source File</th>
+                            <th>Status</th>
+                            <th>Created</th>
+                            <th>Completed</th>
+                            <th>Blocks</th>
+                            <th>Duration</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Data will be loaded via JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
 </div>
+
+<!-- Log Details Modal -->
+<div class="modal fade" id="logDetailsModal" tabindex="-1" role="dialog" aria-labelledby="logDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="logDetailsModalLabel">Migration Log Details</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="logDetailsContent">
+                    <!-- Content will be loaded dynamically -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                <button id="downloadLogBtn" type="button" class="btn btn-primary">
+                    <i class="fas fa-download"></i> Download Results
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Notification Container -->
+<div id="toastContainer" style="position: fixed; top: 20px; right: 20px; z-index: 1100;"></div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<!-- Required Libraries -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.2.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.2.2/js/buttons.html5.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+$(document).ready(function() {
+    let currentLogId = null;
+    const logsTable = $('#logsTable').DataTable({
+        ajax: {
+            url: '/api/migrations',
+            dataSrc: '',
+            data: function(d) {
+                // Add filter parameters to the request
+                d.status = $('#status-filter').val();
+                d.date_from = $('#date-from').val();
+                d.date_to = $('#date-to').val();
+                d.user_id = $('#user-filter').val();
+            }
+        },
+        dom: 'Bfrtip',
+        buttons: [
+            {
+                extend: 'csv',
+                text: '<i class="fas fa-file-csv"></i> Export CSV',
+                className: 'btn btn-sm btn-secondary'
+            },
+            {
+                extend: 'excel',
+                text: '<i class="fas fa-file-excel"></i> Export Excel',
+                className: 'btn btn-sm btn-success'
+            }
+        ],
+        columns: [
+            { data: 'id' },
+            { 
+                data: 'user_id',
+                render: function(data, type, row) {
+                    return row.user.username || 'N/A';
+                }
+            },
+            { data: 'source_file' },
+            { 
+                data: 'status',
+                render: function(data, type, row) {
+                    let badgeClass = 'badge-secondary';
+                    if (data === 'completed') badgeClass = 'badge-success';
+                    if (data === 'failed') badgeClass = 'badge-danger';
+                    if (data === 'in_progress') badgeClass = 'badge-primary';
+                    return `<span class="badge ${badgeClass}">${data}</span>`;
+                }
+            },
+            { 
+                data: 'created_at',
+                render: function(data) {
+                    return data ? moment(data).format('YYYY-MM-DD HH:mm') : '-';
+                }
+            },
+            { 
+                data: 'completed_at',
+                render: function(data) {
+                    return data ? moment(data).format('YYYY-MM-DD HH:mm') : '-';
+                }
+            },
+            { data: 'block_count' },
+            { 
+                data: null,
+                render: function(data, type, row) {
+                    if (!row.created_at || !row.completed_at) return '-';
+                    const start = moment(row.created_at);
+                    const end = row.completed_at ? moment(row.completed_at) : moment();
+                    const duration = moment.duration(end.diff(start));
+                    return `${duration.hours()}h ${duration.minutes()}m ${duration.seconds()}s`;
+                }
+            },
+            {
+                data: null,
+                render: function(data, type, row) {
+                    return `
+                        <div class="btn-group">
+                            <button class="btn btn-sm btn-info view-log" data-id="${row.id}">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <button class="btn btn-sm btn-primary download-log" data-id="${row.id}">
+                                <i class="fas fa-download"></i>
+                            </button>
+                        </div>
+                    `;
+                },
+                orderable: false
+            }
+        ],
+        order: [[4, 'desc']], // Sort by created_at descending
+        createdRow: function(row, data, dataIndex) {
+            $(row).addClass('log-row');
+        }
+    });
+
+    // Refresh button
+    $('#refresh-btn').click(function() {
+        logsTable.ajax.reload();
+    });
+
+    // Filter handlers
+    $('#status-filter, #date-from, #date-to, #user-filter').change(function() {
+        logsTable.ajax.reload();
+    });
+
+    // Reset filters
+    $('#reset-filters').click(function() {
+        $('#status-filter').val('');
+        $('#date-from').val('');
+        $('#date-to').val('');
+        $('#user-filter').val('');
+        logsTable.ajax.reload();
+    });
+
+    // View log details
+    $('#logsTable').on('click', '.view-log', function() {
+        currentLogId = $(this).data('id');
+        
+        $.get(`/api/migration/${currentLogId}`, function(data) {
+            const detailsHtml = `
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>User</h6>
+                        <p>${data.user.username || 'N/A'}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Status</h6>
+                        <span class="badge ${getStatusBadgeClass(data.status)}">${data.status}</span>
+                    </div>
+                </div>
+                <div class="row mt-3">
+                    <div class="col-md-6">
+                        <h6>Source File</h6>
+                        <p>${data.source_file}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Target File</h6>
+                        <p>${data.target_file}</p>
+                    </div>
+                </div>
+                <div class="row mt-3">
+                    <div class="col-md-4">
+                        <h6>Created At</h6>
+                        <p>${moment(data.created_at).format('YYYY-MM-DD HH:mm:ss')}</p>
+                    </div>
+                    <div class="col-md-4">
+                        <h6>Completed At</h6>
+                        <p>${data.completed_at ? moment(data.completed_at).format('YYYY-MM-DD HH:mm:ss') : '-'}</p>
+                    </div>
+                    <div class="col-md-4">
+                        <h6>Duration</h6>
+                        <p>${data.completed_at ? calculateDuration(data.created_at, data.completed_at) : '-'}</p>
+                    </div>
+                </div>
+                <div class="row mt-3">
+                    <div class="col-md-4">
+                        <h6>Blocks Migrated</h6>
+                        <p>${data.block_count || 0}</p>
+                    </div>
+                </div>
+                ${data.error_message ? `
+                <div class="row mt-3">
+                    <div class="col-md-12">
+                        <h6>Error Details</h6>
+                        <div class="alert alert-danger">
+                            <pre>${data.error_message}</pre>
+                        </div>
+                    </div>
+                </div>
+                ` : ''}
+            `;
+            
+            $('#logDetailsContent').html(detailsHtml);
+            $('#logDetailsModal').modal('show');
+        }).fail(function() {
+            showToast('Failed to load log details', 'error');
+        });
+    });
+
+    // Download log results
+    $('#logsTable').on('click', '.download-log', function() {
+        const logId = $(this).data('id');
+        window.location.href = `/api/migration/${logId}/admin/download`;
+    });
+
+    $('#downloadLogBtn').click(function() {
+        if (!currentLogId) return;
+        window.location.href = `/api/migration/${currentLogId}/admin/download`;
+    });
+
+    // Helper functions
+    function getStatusBadgeClass(status) {
+        switch(status) {
+            case 'completed': return 'badge-success';
+            case 'failed': return 'badge-danger';
+            case 'in_progress': return 'badge-primary';
+            default: return 'badge-secondary';
+        }
+    }
+
+    function calculateDuration(start, end) {
+        const startMoment = moment(start);
+        const endMoment = moment(end);
+        const duration = moment.duration(endMoment.diff(startMoment));
+        return `${duration.hours()}h ${duration.minutes()}m ${duration.seconds()}s`;
+    }
+
+    function showToast(message, type) {
+        const toast = $(`
+            <div class="toast align-items-center text-white bg-${type} border-0" role="alert" aria-live="assertive" aria-atomic="true">
+                <div class="d-flex">
+                    <div class="toast-body">
+                        ${message}
+                    </div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                </div>
+            </div>
+        `);
+        
+        $('#toastContainer').append(toast);
+        const bsToast = new bootstrap.Toast(toast[0]);
+        bsToast.show();
+        
+        setTimeout(() => {
+            toast.remove();
+        }, 5000);
+    }
+});
+</script>
 {% endblock %}

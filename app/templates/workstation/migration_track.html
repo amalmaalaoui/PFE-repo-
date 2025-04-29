@@ -4,12 +4,43 @@
 
 {% block header %}Workstation - Migration Track{% endblock %}
 
+{% block styles %}
+{{ super() }}
+<style>
+    .badge {
+        font-size: 0.85em;
+        padding: 0.35em 0.65em;
+        font-weight: 500;
+    }
+    .migration-row:hover {
+        background-color: #f8f9fa;
+    }
+    .action-buttons .btn {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.875rem;
+    }
+    #migrationsTable th {
+        white-space: nowrap;
+    }
+    .status-filter {
+        margin-right: 10px;
+        margin-bottom: 10px;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid">
     <div class="card shadow mb-4">
         <div class="card-header py-3 d-flex justify-content-between align-items-center">
             <h6 class="m-0 font-weight-bold text-primary">Migration History</h6>
             <div>
+                <div class="btn-group mr-2">
+                    <button id="status-filter-all" class="btn btn-sm btn-outline-secondary status-filter active">All</button>
+                    <button id="status-filter-completed" class="btn btn-sm btn-outline-success status-filter">Completed</button>
+                    <button id="status-filter-failed" class="btn btn-sm btn-outline-danger status-filter">Failed</button>
+                    <button id="status-filter-in-progress" class="btn btn-sm btn-outline-primary status-filter">In Progress</button>
+                </div>
                 <button id="refresh-btn" class="btn btn-sm btn-primary">
                     <i class="fas fa-sync-alt"></i> Refresh
                 </button>
@@ -17,8 +48,8 @@
         </div>
         <div class="card-body">
             <div class="table-responsive">
-                <table class="table table-bordered" id="migrationsTable" width="100%" cellspacing="0">
-                    <thead>
+                <table class="table table-bordered table-hover" id="migrationsTable" width="100%" cellspacing="0">
+                    <thead class="thead-light">
                         <tr>
                             <th>ID</th>
                             <th>Source File</th>
@@ -44,7 +75,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="migrationDetailsModalLabel">Migration Details</h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                <button type="button" class="close" data-bs-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
@@ -54,7 +85,7 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                 <button id="downloadMigrationBtn" type="button" class="btn btn-primary">
                     <i class="fas fa-download"></i> Download Results
                 </button>
@@ -74,74 +105,96 @@
                 </button>
             </div>
             <div class="modal-body">
-                Are you sure you want to delete this migration record? This action cannot be undone.
+                <p>Are you sure you want to delete this migration record? This action cannot be undone.</p>
+                <p class="text-danger"><strong>Warning:</strong> This will also delete any associated result files.</p>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-                <button id="confirmDeleteBtn" type="button" class="btn btn-danger">Delete</button>
+                <button id="confirmDeleteBtn" type="button" class="btn btn-danger">
+                    <i class="fas fa-trash-alt mr-1"></i> Delete Permanently
+                </button>
             </div>
         </div>
     </div>
 </div>
+
+<!-- Toast Notification Container -->
+<div id="toastContainer" style="position: fixed; top: 20px; right: 20px; z-index: 1100;"></div>
 {% endblock %}
 
 {% block scripts %}
+{{ super() }}
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.3/dist/umd/popper.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.min.js"></script>
+<script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-5.1.3/js/bootstrap.bundle.min.js"></script>
 <script>
 $(document).ready(function() {
     let currentMigrationId = null;
     const migrationsTable = $('#migrationsTable').DataTable({
         ajax: {
-            url: '/api/migrations',
-            dataSrc: ''
-        },
+        url: '/api/migrationsdata',
+        dataSrc: 'data',  // Point to the 'data' property in the response
+        error: function(xhr, error, thrown) {
+            console.error('DataTables error:', error, thrown);
+            showToast('Failed to load migration data', 'error');
+        }
+    },
         columns: [
-            { data: 'id' },
-            { data: 'source_file' },
+            { 
+                data: 'id',
+                width: '5%'
+            },
+            { 
+                data: 'source_file',
+                render: function(data) {
+                    return data ? data.split('/').pop() : 'N/A';
+                }
+            },
             { 
                 data: 'status',
-                render: function(data, type, row) {
-                    // Ensure status is uppercase
-                    const status = data ? data.toUpperCase() : 'UNKNOWN';
-                    let badgeClass = 'badge-secondary'; // default
-                    
-                    // Set appropriate badge class based on status
-                    if (status === 'COMPLETED') badgeClass = 'badge-success';
-                    else if (status === 'CANCELED') badgeClass = 'badge-secondary';
-                    else if (status === 'ERROR') badgeClass = 'badge-danger';
-                    else if (status === 'PENDING') badgeClass = 'badge-warning';
-                    else if (status === 'FAILED') badgeClass = 'badge-danger';
-                    else if (status === 'IN_PROGRESS') badgeClass = 'badge-primary';
-                    else if (status === 'SCHEDULED') badgeClass = 'badge-info';
-                    
-                    return `<span class="badge ${badgeClass}">${status}</span>`;
+                width: '12%',
+                render: function(data) {
+                    return getStatusBadge(data);
                 }
-            },    
+            },
             { 
                 data: 'created_at',
+                width: '15%',
                 render: function(data) {
-                    return new Date(data).toLocaleString();
+                    return data ? moment(data).format('YYYY-MM-DD HH:mm') : '-';
                 }
             },
             { 
                 data: 'completed_at',
+                width: '15%',
                 render: function(data) {
-                    return data ? new Date(data).toLocaleString() : '-';
+                    return data ? moment(data).format('YYYY-MM-DD HH:mm') : '-';
                 }
             },
-            { data: 'block_count' },
+            { 
+                data: 'block_count',
+                width: '8%',
+                className: 'text-center'
+            },
             {
                 data: null,
+                width: '12%',
+                className: 'action-buttons',
                 render: function(data, type, row) {
                     return `
-                        <div class="btn-group">
-                            <button class="btn btn-sm btn-info view-migration" data-id="${row.id}">
+                        <div class="btn-group btn-group-sm" role="group">
+                            <button class="btn btn-info view-migration" data-id="${row.id}" title="View Details">
                                 <i class="fas fa-eye"></i>
                             </button>
-                            <button class="btn btn-sm btn-danger delete-migration" data-id="${row.id}">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                            <button class="btn btn-sm btn-primary download-migration" data-id="${row.id}">
+                            <button class="btn btn-primary download-migration" data-id="${row.id}" title="Download Results">
                                 <i class="fas fa-download"></i>
+                            </button>
+                            <button class="btn btn-danger delete-migration" data-id="${row.id}" title="Delete Record">
+                                <i class="fas fa-trash-alt"></i>
                             </button>
                         </div>
                     `;
@@ -149,67 +202,97 @@ $(document).ready(function() {
                 orderable: false
             }
         ],
-        order: [[3, 'desc']] // Sort by created_at descending
+        order: [[3, 'desc']], // Sort by created_at descending
+        createdRow: function(row, data, dataIndex) {
+            $(row).addClass('migration-row');
+        },
+        language: {
+            emptyTable: "No migration records found",
+            info: "Showing _START_ to _END_ of _TOTAL_ migrations",
+            infoEmpty: "Showing 0 to 0 of 0 migrations",
+            loadingRecords: "Loading...",
+            processing: "Processing...",
+            zeroRecords: "No matching migrations found"
+        }
+    });
+
+    // Status filter buttons
+    $('.status-filter').click(function() {
+        $('.status-filter').removeClass('active');
+        $(this).addClass('active');
+        migrationsTable.ajax.reload();
     });
 
     // Refresh button
     $('#refresh-btn').click(function() {
-        migrationsTable.ajax.reload();
+        migrationsTable.ajax.reload(null, false);
+        showToast('Migration data refreshed', 'success');
     });
 
     // View migration details
     $('#migrationsTable').on('click', '.view-migration', function() {
-        const migrationId = $(this).data('id');
-        currentMigrationId = migrationId;
-        
-        $.get(`/api/migration/${migrationId}`, function(data) {
+        currentMigrationId = $(this).data('id');
+
+        $.get(`/api/migrationinfo/${currentMigrationId}`, function(data) {
+            if (!data) {
+                showToast('No migration data found', 'error');
+                return;
+            }
+            const duration = data.completed_at ? 
+                moment.duration(moment(data.completed_at).diff(moment(data.created_at))) : null;
+            
             const detailsHtml = `
                 <div class="row">
                     <div class="col-md-6">
                         <h6>Source File</h6>
-                        <p>${data.source_file}</p>
+                        <p class="text-break">${data.source_file || 'N/A'}</p>
                     </div>
                     <div class="col-md-6">
                         <h6>Target File</h6>
-                        <p>${data.target_file}</p>
+                        <p class="text-break">${data.target_file || 'N/A'}</p>
                     </div>
                 </div>
                 <div class="row mt-3">
                     <div class="col-md-4">
                         <h6>Status</h6>
-                        <span class="badge ${getStatusBadgeClass(data.status)}">${data.status}</span>
+                        ${getStatusBadge(data.status)}
                     </div>
                     <div class="col-md-4">
                         <h6>Blocks Migrated</h6>
-                        <p>${data.block_count}</p>
+                        <p>${data.block_count || 0}</p>
                     </div>
                     <div class="col-md-4">
-                        <h6>Created At</h6>
-                        <p>${new Date(data.created_at).toLocaleString()}</p>
+                        <h6>Duration</h6>
+                        <p>${duration ? `${duration.hours()}h ${duration.minutes()}m ${duration.seconds()}s` : '-'}</p>
                     </div>
                 </div>
-                ${data.completed_at ? `
                 <div class="row mt-3">
                     <div class="col-md-6">
+                        <h6>Created At</h6>
+                        <p>${moment(data.created_at).format('YYYY-MM-DD HH:mm:ss')}</p>
+                    </div>
+                    <div class="col-md-6">
                         <h6>Completed At</h6>
-                        <p>${new Date(data.completed_at).toLocaleString()}</p>
+                        <p>${data.completed_at ? moment(data.completed_at).format('YYYY-MM-DD HH:mm:ss') : '-'}</p>
                     </div>
                 </div>
-                ` : ''}
                 ${data.error_message ? `
                 <div class="row mt-3">
-                    <div class="col-md-12">
-                        <h6>Error Message</h6>
-                        <div class="alert alert-danger">${data.error_message}</div>
+                    <div class="col-12">
+                        <h6>Error Details</h6>
+                        <div class="alert alert-danger p-2">
+                            <pre class="mb-0">${data.error_message}</pre>
+                        </div>
                     </div>
                 </div>
                 ` : ''}
+                
             `;
             
             $('#migrationDetailsContent').html(detailsHtml);
             $('#migrationDetailsModal').modal('show');
         }).fail(function() {
-            alert('Failed to load migration details');
+            showToast('Failed to load migration details', 'error');
         });
     });
 
@@ -219,18 +302,16 @@ $(document).ready(function() {
         $('#confirmDeleteModal').modal('show');
     });
 
-    $('#migrationsTable').on('click', '.download-migration', function() {
-        currentMigrationId = $(this).data('id');
-        if (!currentMigrationId) return;
-        window.location.href = `/api/migration/${currentMigrationId}/download`;
-    });
-
+    // Confirm delete
     $('#confirmDeleteBtn').click(function() {
         if (!currentMigrationId) return;
         
         $.ajax({
             url: `/api/migration/${currentMigrationId}`,
             method: 'DELETE',
+            beforeSend: function() {
+                $('#confirmDeleteBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i> Deleting...');
+            },
             success: function() {
                 migrationsTable.ajax.reload();
                 $('#confirmDeleteModal').modal('hide');
@@ -238,36 +319,65 @@ $(document).ready(function() {
             },
             error: function() {
                 showToast('Failed to delete migration', 'error');
+            },
+            complete: function() {
+                $('#confirmDeleteBtn').prop('disabled', false).html('<i class="fas fa-trash-alt mr-1"></i> Delete Permanently');
             }
         });
     });
 
     // Download migration results
+    $('#migrationsTable').on('click', '.download-migration', function() {
+        const migrationId = $(this).data('id');
+        window.location.href = `/api/migration/${migrationId}/download`;
+    });
+
     $('#downloadMigrationBtn').click(function() {
         if (!currentMigrationId) return;
-        
         window.location.href = `/api/migration/${currentMigrationId}/download`;
     });
 
-    function getStatusBadgeClass(status) {
-    const upperStatus = status ? status.toUpperCase() : 'UNKNOWN';
-    switch(upperStatus) {
-        case 'COMPLETED': return 'badge-success';
-        case 'FAILED': return 'badge-danger';
-        case 'IN_PROGRESS': return 'badge-primary';
-        case 'PENDING': return 'badge-warning';
-        case 'CANCELED': return 'badge-secondary';
-        case 'ERROR': return 'badge-danger';
-        case 'SCHEDULED': return 'badge-info';
-        default: return 'badge-secondary';
+    // Helper functions
+    function getStatusBadge(status) {
+        const upperStatus = (status || '').toUpperCase();
+        let badgeClass = 'badge-secondary';
+        let displayStatus = upperStatus;
+        
+        switch(upperStatus) {
+            case 'COMPLETED':
+                badgeClass = 'badge-success';
+                break;
+            case 'FAILED':
+            case 'ERROR':
+                badgeClass = 'badge-danger';
+                displayStatus = 'FAILED';
+                break;
+            case 'IN_PROGRESS':
+                badgeClass = 'badge-primary';
+                displayStatus = 'IN PROGRESS';
+                break;
+            case 'PENDING':
+                badgeClass = 'badge-warning';
+                break;
+            case 'CANCELED':
+                badgeClass = 'badge-secondary';
+                break;
+            case 'SCHEDULED':
+                badgeClass = 'badge-info';
+                break;
+            default:
+                displayStatus = upperStatus || 'UNKNOWN';
+        }
+        
+        return `<span class="badge ${badgeClass}">${displayStatus.replace('_', ' ')}</span>`;
     }
-}
 
     function showToast(message, type) {
         const toast = $(`
             <div class="toast align-items-center text-white bg-${type} border-0" role="alert" aria-live="assertive" aria-atomic="true">
                 <div class="d-flex">
                     <div class="toast-body">
+                        <i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'} mr-2"></i>
                         ${message}
                     </div>
                     <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>

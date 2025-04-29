@@ -84,7 +84,7 @@ class UserFile(db.Model):
 
 class Migration(db.Model):
     __tablename__ = 'migrations'
-    
+
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
     source_file = db.Column(db.String(500), nullable=False)
@@ -96,6 +96,8 @@ class Migration(db.Model):
     scheduled_time = db.Column(db.DateTime)
     job_id = db.Column(db.String(100))
     status = db.Column(db.String(50), default=MigrationStatus.PENDING.value, nullable=False)
+    log_file_path = db.Column(db.String(500))
+    result_file_path = db.Column(db.String(500))
     
     @property
     def status_enum(self):

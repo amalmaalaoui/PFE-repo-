@@ -59,12 +59,6 @@ def admin_bulk_action():
     data = request.json
     return jsonify({'success': True})
 
-@main_bp.route('/admin/logs')
-@login_required
-@admin_required
-def logs():
-    migrations = Migration.query.order_by(Migration.created_at.desc()).all()
-    return render_template('admin/logs.html', migrations=migrations)
 
 @main_bp.route('/admin/dashboard')
 @admin_required
@@ -125,3 +119,112 @@ def get_system_info():
         'success': True
     }
     return jsonify(system_info)
+
+
+from flask import jsonify, send_file, abort
+from datetime import datetime
+from sqlalchemy import or_
+
+@main_bp.route('/api/migrations')
+@login_required
+@admin_required
+def api_migrations():
+    # Get filter parameters from request
+    status_filter = request.args.get('status')
+    date_from = request.args.get('date_from')
+    date_to = request.args.get('date_to')
+    user_id = request.args.get('user_id')
+    
+    # Base query
+    query = Migration.query.order_by(Migration.created_at.desc())
+    
+    # Apply filters
+    if status_filter:
+        query = query.filter(Migration.status == status_filter)
+    
+    if date_from:
+        try:
+            date_from = datetime.strptime(date_from, '%Y-%m-%d')
+            query = query.filter(Migration.created_at >= date_from)
+        except ValueError:
+            pass
+    
+    if date_to:
+        try:
+            date_to = datetime.strptime(date_to, '%Y-%m-%d')
+            # Include the entire day by adding 1 day
+            query = query.filter(Migration.created_at < date_to + timedelta(days=1))
+        except ValueError:
+            pass
+    
+    if user_id:
+        query = query.filter(Migration.user_id == user_id)
+    
+    # Execute query and prepare response
+    migrations = query.all()
+    
+    # Convert migrations to dictionary format for JSON response
+    migrations_data = []
+    for migration in migrations:
+        migration_data = {
+            'id': migration.id,
+            'user_id': migration.user_id,
+            'user': {
+                'id': migration.user.id,
+                'username': migration.user.username
+            },
+            'source_file': migration.source_file,
+            'target_file': migration.target_file,
+            'status': migration.status,
+            'created_at': migration.created_at.isoformat() if migration.created_at else None,
+            'completed_at': migration.completed_at.isoformat() if migration.completed_at else None,
+            'block_count': migration.block_count,
+            'error_message': migration.error_message
+        }
+        migrations_data.append(migration_data)
+    
+    return jsonify(migrations_data)
+
+@main_bp.route('/api/migration/<int:migration_id>')
+@login_required
+@admin_required
+def api_migration_details(migration_id):
+    migration = Migration.query.get_or_404(migration_id)
+    
+    migration_data = {
+        'id': migration.id,
+        'user_id': migration.user_id,
+        'user': {
+            'id': migration.user.id,
+            'username': migration.user.username
+        },
+        'source_file': migration.source_file,
+        'target_file': migration.target_file,
+        'status': migration.status,
+        'created_at': migration.created_at.isoformat() if migration.created_at else None,
+        'completed_at': migration.completed_at.isoformat() if migration.completed_at else None,
+        'block_count': migration.block_count,
+        'error_message': migration.error_message,
+        'log_file_path': migration.log_file_path,
+        'result_file_path': migration.result_file_path
+    }
+    
+    return jsonify(migration_data)
+
+
+
+@main_bp.route('/api/users')
+@login_required
+@admin_required
+def api_users():
+    # This endpoint provides user data for the user filter dropdown
+    users = User.query.order_by(User.username).all()
+    users_data = [{'id': user.id, 'username': user.username} for user in users]
+    return jsonify(users_data)
+
+@main_bp.route('/admin/logs')
+@login_required
+@admin_required
+def logs():
+    all_users = User.query.order_by(User.username).all()
+    return render_template('admin/logs.html', all_users=all_users)
