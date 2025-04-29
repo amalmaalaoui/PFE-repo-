@@ -149,7 +149,11 @@ logs/
 *.session
 
 # Database migrations (if using Flask-Migrate)
-migrations/
+migrations/versions/*.pyc
+migrations/versions/*.pyo
+
+app/static/uploads/*
+app/static/migrations/*
 
 # Local development files
 instance/
