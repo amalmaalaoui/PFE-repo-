@@ -7,7 +7,8 @@ from flask_migrate import Migrate
 from flask_apscheduler import APScheduler
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from pytz import timezone
-
+from os import getenv
+from dotenv import load_dotenv
 # Initialize extensions without app
 db = SQLAlchemy()
 login_manager = LoginManager()
@@ -29,7 +30,8 @@ def create_app(start_scheduler=False):
     # Configuration
     app.config['SECRET_KEY'] = 'your-secret-key-here'
     # Fix SSL configuration in SQLALCHEMY_DATABASE_URI
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://avnadmin:AVNS_-AAH9iAsIeElPMZsID9@mysql-2010d951-amalmaalaoui6-c54b.h.aivencloud.com:17068/defaultdb?ssl_ca=./ca.pem'
+    load_dotenv()  # Load environment variables from a .env file
+    app.config['SQLALCHEMY_DATABASE_URI'] = getenv('DBURI', '')
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['UPLOAD_FOLDER'] = 'app/static/uploads'
     app.config['MIGRATION_FOLDER'] = 'app/static/migrations'
@@ -66,6 +68,7 @@ def create_app(start_scheduler=False):
     
     # User loader
     from app.models import User
+
     @login_manager.user_loader
     def load_user(user_id):
         return User.query.get(int(user_id))

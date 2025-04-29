@@ -24,14 +24,14 @@ wheels/
 .installed.cfg
 *.egg
 MANIFEST
-
+.env
 # PyInstaller
 #  Usually these files are written by a python script from a template
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
 *.manifest
 *.spec
 
-# Installer logs
+#add env 
 pip-log.txt
 pip-delete-this-directory.txt
 
