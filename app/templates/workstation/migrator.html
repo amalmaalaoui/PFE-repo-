@@ -482,7 +482,7 @@
                 // Instead of immediately showing progress, wait a moment then check once
                 setTimeout(() => {
                     checkMigrationStatusOnce(jobId, tabId);
-                }, 2000); // Wait 2 seconds after countdown finishes
+                }, 5000); // Wait 2 seconds after countdown finishes
                 return;
             }
 
@@ -500,22 +500,28 @@
         fetch(`/api/migration_progress?job_id=${jobId}`)
             .then(response => response.json())
             .then(data => {
+                console.log('Migration status:', data);
+
                 if (data.error) {
                     showError(data.error);
                     return;
                 }
 
                 const resultsContainer = document.getElementById(`results-container-${tabId}`);
-
-                if (data.status === 'IN_PROGRESS') {
+                console.log('Migration status:', data);
+                if (data.error) {
+                    showError(data.error);
+                    return;
+                }
+                if (data.status.toUpperCase() === 'IN_PROGRESS') {
                     // Migration is now running - show progress
                     updateMigrationStatus(resultsContainer, 'In Progress', 'blue');
                     showMigrationProgress(resultsContainer, tabId, jobId);
-                } else if (data.status === 'COMPLETED') {
-                    // Migration completed very quickly - show results
+                } else if (data.status.toUpperCase() === 'COMPLETED') {
+                    console.log('Migration completed successfully:', data);
                     showMigrationResults(resultsContainer, data);
                     updateTabStatus(tabId, 'COMPLETED');
-                } else if (data.status === 'FAILED') {
+                } else if (data.status.toUpperCase() === 'FAILED') {
                     // Migration failed immediately - show error
                     showMigrationResults(resultsContainer, data);
                     updateTabStatus(tabId, 'FAILED');
@@ -574,18 +580,22 @@
     }
 
     function showMigrationResults(container, data) {
-        if (!container || !data) return;
 
+        if (!container || !data) return;
         // Hide progress container
         const progressContainer = container.querySelector('#progress-container');
         if (progressContainer) progressContainer.classList.add('hidden');
 
         // Update migration status
         if (data.status) {
-            const statusColor = data.status === 'completed' ? 'green' :
-                data.status === 'failed' ? 'red' : 'blue';
+            const statusColor = data.status.toUpperCase() === 'COMPLETED' ? 'green' :
+                data.status.toUpperCase() === 'FAILED' ? 'red' :
+                    data.status.toUpperCase() === 'IN_PROGRESS' ? 'blue' :
             updateMigrationStatus(container, data.status.charAt(0).toUpperCase() + data.status.slice(1), statusColor);
+            document.getElementById('countdown-container').classList.add('hidden');
+
         }
+        console.log('Migration results:', data, "container", container);
 
         // Update block count if available
         if (data.block_count !== undefined) {

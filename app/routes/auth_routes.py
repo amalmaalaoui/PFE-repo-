@@ -1,3 +1,4 @@
+from sqlite3 import IntegrityError
 from flask import render_template, request, redirect, url_for, flash
 from flask_login import login_user, logout_user, login_required, current_user
 from ..forms import UserForm, EditUserForm
@@ -134,16 +135,32 @@ def reset_password():
 @main_bp.route('/update_profile', methods=['POST'])
 @login_required
 def update_profile():
-    if request.method == 'POST':
-        username = request.form['username']
-        email = request.form['email']
-        
-        if not username or not email:
-            flash('All fields are required', 'error')
-            return redirect(url_for('main.account_config'))
-        
+    # Get form data
+    username = request.form.get('username')
+    email = request.form.get('email')
+
+    # Validate required fields
+    if not all([username, email]):
+        flash('All fields are required', 'error')
+        return redirect(url_for('main.update_profile'))
+
+    try:
+        # Check for existing username/email
+        if User.query.filter(User.username == username, User.id != current_user.id).first():
+            raise IntegrityError(None, None, None)
+        if User.query.filter(User.email == email, User.id != current_user.id).first():
+            raise IntegrityError(None, None, None)
+
+        # Update user
         current_user.username = username
         current_user.email = email
         db.session.commit()
         flash('Profile updated successfully', 'success')
+    except IntegrityError:
+        db.session.rollback()
+        flash('Username or email already exists', 'error')
+    except Exception as e:
+        db.session.rollback()
+        flash('Error updating profile. Please try again.', 'error')
+    
     return redirect(url_for('main.account_config'))

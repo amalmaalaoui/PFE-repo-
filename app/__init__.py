@@ -28,7 +28,8 @@ def create_app(start_scheduler=False):
     tunis_tz = timezone('Africa/Tunis')
     # Configuration
     app.config['SECRET_KEY'] = 'your-secret-key-here'
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:@localhost/qtpmigrator'
+    # Fix SSL configuration in SQLALCHEMY_DATABASE_URI
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://avnadmin:AVNS_-AAH9iAsIeElPMZsID9@mysql-2010d951-amalmaalaoui6-c54b.h.aivencloud.com:17068/defaultdb?ssl_ca=./ca.pem'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['UPLOAD_FOLDER'] = 'app/static/uploads'
     app.config['MIGRATION_FOLDER'] = 'app/static/migrations'

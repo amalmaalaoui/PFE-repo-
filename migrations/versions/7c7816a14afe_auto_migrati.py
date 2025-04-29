@@ -1,8 +1,8 @@
-"""empty message
+"""auto migrati
 
-Revision ID: 32de37ce03b5
-Revises: 33005ca96c7b
-Create Date: 2025-04-29 00:42:02.960034
+Revision ID: 7c7816a14afe
+Revises: bf5fec4408e5
+Create Date: 2025-04-30 08:08:41.731426
 
 """
 from alembic import op
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import mysql
 
 # revision identifiers, used by Alembic.
-revision = '32de37ce03b5'
-down_revision = '33005ca96c7b'
+revision = '7c7816a14afe'
+down_revision = 'bf5fec4408e5'
 branch_labels = None
 depends_on = None
 

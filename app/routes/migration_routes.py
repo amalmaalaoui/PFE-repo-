@@ -46,6 +46,7 @@ def start_migration():
     if data.get('schedule_time'):
         try:
             scheduled_time = datetime.strptime(data['schedule_time'], '%Y-%m-%dT%H:%M')
+            print("Scheduled time:", scheduled_time)
             if scheduled_time < datetime.now():
                 return jsonify({'error': 'Scheduled time must be in the future'}), 400
         except ValueError:
@@ -81,14 +82,13 @@ def start_migration():
         try:
             # Schedule the job with kwargs only (no args)
             job = scheduler.add_job(
-                    func= run_migration_task,  # String reference
+                    func=run_migration_task,  # String reference
                     trigger='date',
-                    run_date=scheduled_time,
+                    run_date=scheduled_time.astimezone(tunis_tz),  # Ensure scheduled_time is in Tunis timezone
                     kwargs=migration_data,
                     id=f"migration_{migration.id}",
-                    replace_existing=True
+                    replace_existing=True,
                 )
-            
             migration.job_id = job.id
             db.session.commit()
             
