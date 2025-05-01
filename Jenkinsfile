@@ -10,7 +10,11 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                checkout scm
+                git(
+                    url: 'https://github.com/amalmaalaoui/PFE-repo-.git',
+                    credentialsId: 'git',  
+                    branch: 'main'
+                )
             }
         }
 
