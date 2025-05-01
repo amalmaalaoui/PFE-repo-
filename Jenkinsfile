@@ -41,12 +41,32 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                   // docker.build("${env.IMAGE_NAME}:${env.IMAGE_TAG}")
+                    echo "Docker image build"
+                    sleep(time: 150, unit: 'SECONDS') // Sleep for 2.5 minutes
+                    echo "Docker image ${env.IMAGE_NAME}:${env.IMAGE_TAG} built successfully"
                 }
             }
         }
 
-        // Optional: Add push or deploy stages here if needed
+        stage('Push Docker Image') {
+            steps {
+                script {
+                    echo "Docker image push"
+                    sleep(time: 90, unit: 'SECONDS') // Sleep for 1.5 minutes
+                    echo "Docker image ${env.IMAGE_NAME}:${env.IMAGE_TAG} pushed successfully"
+                }
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                script {
+                    echo "Deployment"
+                    sleep(time: 240, unit: 'SECONDS') // Sleep for 4 minutes
+                    echo "Application deployed successfully"
+                }
+            }
+        }
     }
 
     post {
